@@ -74,6 +74,38 @@ button:hover {
   font-size: 12px;
   font-weight: bold;
 }
+  /* おすすめラベル */
+.recommend-wrap {
+  transform: translateY(-10px);
+}
+
+.recommend-box {
+  background: #fffaf3;
+  color: #5a3e2b;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid #d6c3a3;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.2);
+  white-space: nowrap;
+  animation: float 2s ease-in-out infinite;
+}
+
+.recommend-arrow {
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 8px solid #fffaf3;
+  margin: 0 auto;
+}
+
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-5px); }
+  100% { transform: translateY(0px); }
+}
 </style>
 </head>
 
@@ -193,6 +225,7 @@ function drawRoute(from,to){
 // 最寄り
 function findNearest(){
   if(!userMarker) return;
+
   let min=Infinity;
   markers.forEach(m=>{
     const d=dist(userMarker.getLatLng(),m.getLatLng());
@@ -200,11 +233,25 @@ function findNearest(){
   });
 
   if(nearest){
-    L.marker(nearest.getLatLng(),{
-      icon:L.divIcon({
-        html:`<div class="recommend">おすすめ</div>`
+
+    // 前のおすすめ削除
+    if(window.recommendMarker){
+      map.removeLayer(window.recommendMarker);
+    }
+
+    // 新しいおすすめ表示
+    window.recommendMarker = L.marker(nearest.getLatLng(),{
+      icon: L.divIcon({
+        className: "recommend-wrap",
+        html: `
+          <div class="recommend-box">
+            ⭐ おすすめスポット
+          </div>
+          <div class="recommend-arrow"></div>
+        `
       })
     }).addTo(map);
+
   }
 }
 
