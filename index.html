@@ -31,6 +31,7 @@
 </div>
 
 <script>
+// Firebase 設定
 const firebaseConfig = {
   apiKey: "AIzaSyA_bAVs54VH8egBWlLHGXpq-34HNR97PRg",
   authDomain: "map-yoisyo.firebaseapp.com",
@@ -62,6 +63,15 @@ const categoryMap = {
   "史跡B（小規模）":"Historic B",
   "噂":"Rumor",
   "川に関する史跡":"River"
+};
+
+// タグごとの色分け
+const tagColorMap = {
+  "展示施設（博物館 等）":"yellow",
+  "史跡A（観光名所級）":"darkred",
+  "史跡B（小規模）":"lightred",
+  "噂":"black",
+  "川に関する史跡":"blue"
 };
 
 // 交通手段切替
@@ -96,7 +106,7 @@ function distanceKm(lat1,lng1,lat2,lng2){
   return R*c;
 }
 
-// ルート表示（Leaflet Routing Machine）
+// ルート表示（Leaflet Routing Machine + OSRM）
 function updateRoute(){
   if(routeControl) map.removeControl(routeControl);
   if(!currentLocation || !routeTarget) return;
@@ -104,12 +114,11 @@ function updateRoute(){
   routeControl = L.Routing.control({
     waypoints: [L.latLng(currentLocation[0], currentLocation[1]), L.latLng(routeTarget[0], routeTarget[1])],
     lineOptions: { styles: [{color: 'blue', opacity:0.6, weight:5}] },
-    router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
+    router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1', profile: transportMode }),
     createMarker: ()=>{ return null; },
     routeWhileDragging: false,
     fitSelectedRoutes: true,
-    show: false,
-    geocoder: L.Control.Geocoder.nominatim()
+    show: false
   }).addTo(map);
 
   const dist = distanceKm(currentLocation[0], currentLocation[1], routeTarget[0], routeTarget[1]);
@@ -141,10 +150,17 @@ function loadMarkers(){
       const commentNotice = language==='en'? '<i>This comment is in Japanese</i>':'';
       const questionText = language==='en'? 'Show route?' : 'ルートを表示しますか？';
 
+      const icon = L.icon({
+        iconUrl: `https://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=%E2%80%A2|${tagColorMap[item.category]||'gray'}`,
+        iconSize: [21,34],
+        iconAnchor: [10,34],
+        popupAnchor: [0,-34]
+      });
+
       const popupContent = `<b>${item.name}</b><br>${cat}<br>${item.comment || ''}<br>${commentNotice}<br>
         <button onclick="showRoute(${item.lat},${item.lng})">${questionText}</button>`;
 
-      const marker = L.marker([item.lat,item.lng]).addTo(map).bindPopup(popupContent);
+      const marker = L.marker([item.lat,item.lng], {icon:icon}).addTo(map).bindPopup(popupContent);
       markers.push(marker);
 
       if(currentLocation){
