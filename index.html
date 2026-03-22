@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>史跡マップ</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <style>
@@ -41,6 +43,7 @@ window.markers = [];
 let userMarker = null;
 let nearestMarker = null;
 let currentLang = 'ja'; // 初期言語
+let routingControl = null;
 
 // --- タグカラー設定 ---
 const tagColorMap = {
@@ -50,6 +53,16 @@ const tagColorMap = {
   "噂": "black",
   "川に関する史跡": "blue"
 };
+
+// --- 簡易翻訳辞書 ---
+function translate(text){
+  const dict = {
+    "あなたの現在地":"Your location",
+    "あなたにおすすめの場所はここ！":"Recommended spot for you!",
+    "この場所までルートを検索しますか？":"Do you want to search a route to this place?"
+  };
+  return (currentLang==='ja')? text : (dict[text]||text);
+}
 
 // --- 距離計算 ---
 function getDistance(lat1,lng1,lat2,lng2){
@@ -76,46 +89,9 @@ function updatePopups(){
     const name = (currentLang==='ja')? d.name : (d.name_en || d.name);
     const comment = (currentLang==='ja')? d.comment : (d.comment_en || d.comment);
     const tag = (currentLang==='ja')? d.tag : (d.tag_en || d.tag);
-    m.bindPopup("<b>名前:</b> "+name+"<br><b>コメント:</b> "+comment+"<br><b>タグ:</b> "+tag);
-  });
-}
-
-// --- Firebaseからデータ取得 ---
-db.ref("locations").on("value", snapshot=>{
-  const data = snapshot.val();
-  if(!data) return;
-
-  window.markers.forEach(m=>map.removeLayer(m));
-  window.markers = [];
-
-  Object.values(data).forEach(item=>{
-    const color = tagColorMap[item.tag] || "#3388ff";
-    const marker = L.circleMarker([item.lat,item.lng],{
-      color: color,
-      radius:12,
-      fillOpacity:0.9,
-      weight:2
-    }).addTo(map);
-
-    marker.data = item; // 言語切替用にデータ保持
-    window.markers.push(marker);
-  });
-
-  // 現在地がある場合、最寄りピン更新
-  if(userMarker) highlightNearest(userMarker.getLatLng());
-  updatePopups();
-});
-
-// --- 現在地取得 ---
-if(navigator.geolocation){
-  navigator.geolocation.getCurrentPosition(position=>{
-    const lat = position.coords.latitude;
-    const lng = position.coords.longitude;
-    if(userMarker) map.removeLayer(userMarker);
-    userMarker = L.marker([lat,lng],{title:"現在地"}).addTo(map)
-      .bindPopup((currentLang==='ja')?"あなたの現在地":"Your location").openPopup();
-    map.setView([lat,lng],15);
-    highlightNearest(L.latLng(lat,lng));
+    m.bindPopup(
+      "<b>名前:</b> "+name+"<br><b>コメント:</b> "+comment+"<br><b>タグ:</b> "+tag
+    );
   });
 }
 
@@ -132,7 +108,70 @@ function highlightNearest(userLatLng){
     nearest.setStyle({weight:4, color:"#ff33aa"});
     nearest.openPopup();
     nearestMarker = nearest;
+
+    // 画面におすすめメッセージ
+    nearestMarker.bindPopup(translate("あなたにおすすめの場所はここ！")).openPopup();
   }
+}
+
+// --- Firebaseデータ取得 ---
+db.ref("locations").on("value", snapshot=>{
+  const data = snapshot.val();
+  if(!data) return;
+
+  window.markers.forEach(m=>map.removeLayer(m));
+  window.markers = [];
+
+  Object.values(data).forEach(item=>{
+    const color = tagColorMap[item.tag] || "#3388ff";
+    const marker = L.circleMarker([item.lat,item.lng],{
+      color: color,
+      radius:12,
+      fillOpacity:0.9,
+      weight:2
+    }).addTo(map);
+
+    marker.data = item;
+    marker.on('click', ()=>{
+      const msg = translate("この場所までルートを検索しますか？");
+      if(confirm(msg)){
+        if(routingControl) map.removeControl(routingControl);
+        if(userMarker){
+          routingControl = L.Routing.control({
+            waypoints: [
+              userMarker.getLatLng(),
+              marker.getLatLng()
+            ],
+            routeWhileDragging: false,
+            show: false
+          }).addTo(map);
+        } else {
+          alert("現在地が取得できません。");
+        }
+      }
+    });
+
+    window.markers.push(marker);
+  });
+
+  // 現在地がある場合最寄りピン更新
+  if(userMarker) highlightNearest(userMarker.getLatLng());
+  updatePopups();
+});
+
+// --- 現在地取得 ---
+if(navigator.geolocation){
+  navigator.geolocation.getCurrentPosition(position=>{
+    const lat = position.coords.latitude;
+    const lng = position.coords.longitude;
+    if(userMarker) map.removeLayer(userMarker);
+    userMarker = L.marker([lat,lng],{title:translate("あなたの現在地")})
+      .addTo(map)
+      .bindPopup(translate("あなたの現在地"))
+      .openPopup();
+    map.setView([lat,lng],15);
+    highlightNearest(L.latLng(lat,lng));
+  });
 }
 </script>
 </body>
