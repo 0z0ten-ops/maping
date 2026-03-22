@@ -12,7 +12,6 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <style>
 html, body, #map { height: 100%; margin:0; padding:0; }
-.highlight { stroke: #ff33aa !important; stroke-width: 4 !important; }
 .lang-btns { position:absolute; top:10px; right:10px; z-index:1000; }
 .lang-btns button { margin:0 2px; padding:5px 10px; }
 .transport-btns { position:absolute; top:50px; right:10px; z-index:1000; }
@@ -42,16 +41,15 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 // --- 地図初期化 ---
-const map = L.map('map', {zoomControl:true, scrollWheelZoom:true, touchZoom:true, doubleClickZoom:true})
-  .setView([35.681, 139.767], 13);
+const map = L.map('map').setView([35.681, 139.767], 13);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(map);
 
 window.markers = [];
 let userMarker = null;
 let nearestMarker = null;
-let currentLang = 'ja';
 let routingControl = null;
-let transportMode = 'foot'; // 初期交通手段
+let currentLang = 'ja';
+let transportMode = 'foot';
 
 // --- タグカラー設定 ---
 const tagColorMap = {
@@ -70,7 +68,8 @@ function translate(text){
     "この場所までルートを検索しますか？":"Do you want to search a route to this place?",
     "徒歩":"Walking",
     "自転車":"Biking",
-    "車":"Driving"
+    "車":"Driving",
+    "所要時間":"Travel time"
   };
   return (currentLang==='ja')? text : (dict[text]||text);
 }
@@ -96,8 +95,16 @@ function setLanguage(lang){
 function setTransport(mode){
   transportMode = mode;
   if(routingControl){
-    routingControl.setWaypoints(routingControl.getWaypoints()); // 再計算
+    routingControl.setWaypoints(routingControl.getWaypoints());
   }
+}
+
+// --- 所要時間表示 ---
+function formatDuration(seconds){
+  const h = Math.floor(seconds/3600);
+  const m = Math.round((seconds%3600)/60);
+  if(h>0) return `${h}時間${m}分`;
+  return `${m}分`;
 }
 
 // --- ポップアップ更新 ---
@@ -108,9 +115,7 @@ function updatePopups(){
     const name = (currentLang==='ja')? d.name : (d.name_en || d.name);
     const comment = (currentLang==='ja')? d.comment : (d.comment_en || d.comment);
     const tag = (currentLang==='ja')? d.tag : (d.tag_en || d.tag);
-    m.bindPopup(
-      "<b>名前:</b> "+name+"<br><b>コメント:</b> "+comment+"<br><b>タグ:</b> "+tag
-    );
+    m.bindPopup(`<b>${name}</b><br>${comment}<br>${tag}`);
   });
 }
 
@@ -121,11 +126,8 @@ function highlightNearest(userLatLng){
   window.markers.forEach(m=>{
     const d = getDistance(userLatLng.lat,userLatLng.lng,m.getLatLng().lat,m.getLatLng().lng);
     if(d<minDist){ minDist=d; nearest=m; }
-    m.setStyle({weight:2});
   });
   if(nearest){
-    nearest.setStyle({weight:4, color:"#ff33aa"});
-    nearest.openPopup();
     nearestMarker = nearest;
     nearestMarker.bindPopup(translate("あなたにおすすめの場所はここ！")).openPopup();
   }
@@ -160,11 +162,13 @@ db.ref("locations").on("value", snapshot=>{
             ],
             routeWhileDragging: false,
             show: false,
-            lineOptions: {
-              styles: [{color: 'blue', opacity: 0.7, weight: 5}]
-            },
+            lineOptions: {styles: [{color: 'blue', opacity: 0.7, weight: 5}]},
             router: L.Routing.osrmv1({serviceUrl:'https://router.project-osrm.org/route/v1'}),
             fitSelectedRoutes: true
+          }).on('routesfound', function(e){
+            const route = e.routes[0];
+            const duration = formatDuration(route.summary.totalTime);
+            marker.bindPopup(`<b>${item.name}</b><br>${item.comment}<br>${translate("所要時間")}: ${duration}`).openPopup();
           }).addTo(map);
         } else {
           alert("現在地が取得できません。");
