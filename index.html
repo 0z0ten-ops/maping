@@ -31,14 +31,16 @@
 
   window.markers = [];
 
+  // locationsノードを監視してマーカーを表示
   db.ref("locations").on("value", (snapshot) => {
     const data = snapshot.val();
     if (!data) return;
 
-    // 既存マーカーを削除
+    // 既存マーカー削除
     window.markers.forEach(m => map.removeLayer(m));
     window.markers = [];
 
+    // 全回答をマーカー化
     Object.values(data).forEach(item => {
       const marker = L.marker([item.lat, item.lng]).addTo(map);
       marker.bindPopup("<b>" + item.name + "</b><br>" + item.comment);
