@@ -1,23 +1,28 @@
 <!DOCTYPE html>
 <html>
 <head>
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>リアルタイム地図</title>
+<title>史跡マップ</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <style>
-  html, body, #map {
-    height: 100%;
-    margin: 0;
-    padding: 0;
-  }
+  html, body, #map { height: 100%; margin:0; padding:0; }
+  .highlight { stroke: #ff33aa !important; stroke-width: 4 !important; }
+  .lang-btns { position:absolute; top:10px; right:10px; z-index:1000; }
+  .lang-btns button { margin:0 2px; padding:5px 10px; }
 </style>
 </head>
 <body>
+<div class="lang-btns">
+  <button onclick="setLanguage('ja')">日本語</button>
+  <button onclick="setLanguage('en')">English</button>
+</div>
 <div id="map"></div>
 <script>
+// --- Firebase設定 ---
 const firebaseConfig = {
   apiKey: "AIzaSyA_bAVs54VH8egBWlLHGXpq-34HNR97PRg",
   authDomain: "map-yoisyo.firebaseapp.com",
@@ -27,43 +32,108 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-const map = L.map('map', {
-  zoomControl: true,
-  scrollWheelZoom: true,
-  touchZoom: true,
-  doubleClickZoom: true
-}).setView([35.681, 139.767], 13);
-
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; OpenStreetMap'
-}).addTo(map);
+// --- 地図初期化 ---
+const map = L.map('map', {zoomControl:true, scrollWheelZoom:true, touchZoom:true, doubleClickZoom:true})
+  .setView([35.681, 139.767], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(map);
 
 window.markers = [];
+let userMarker = null;
+let nearestMarker = null;
+let currentLang = 'ja'; // 初期言語
 
-db.ref("locations").on("value", (snapshot) => {
+// --- タグカラー設定 ---
+const tagColorMap = {
+  "展示施設（博物館 等）": "yellow",
+  "史跡A（観光名所級）": "darkred",
+  "史跡B（小規模）": "lightred",
+  "噂": "black",
+  "川に関する史跡": "blue"
+};
+
+// --- 距離計算 ---
+function getDistance(lat1,lng1,lat2,lng2){
+  const R = 6371000;
+  const φ1 = lat1*Math.PI/180, φ2 = lat2*Math.PI/180;
+  const Δφ = (lat2-lat1)*Math.PI/180;
+  const Δλ = (lng2-lng1)*Math.PI/180;
+  const a = Math.sin(Δφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)**2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R*c;
+}
+
+// --- 言語切替 ---
+function setLanguage(lang){
+  currentLang = lang;
+  updatePopups();
+}
+
+// --- ポップアップ更新 ---
+function updatePopups(){
+  window.markers.forEach(m=>{
+    const d = m.data;
+    if(!d) return;
+    const name = (currentLang==='ja')? d.name : (d.name_en || d.name);
+    const comment = (currentLang==='ja')? d.comment : (d.comment_en || d.comment);
+    const tag = (currentLang==='ja')? d.tag : (d.tag_en || d.tag);
+    m.bindPopup("<b>名前:</b> "+name+"<br><b>コメント:</b> "+comment+"<br><b>タグ:</b> "+tag);
+  });
+}
+
+// --- Firebaseからデータ取得 ---
+db.ref("locations").on("value", snapshot=>{
   const data = snapshot.val();
-  if (!data) return;
+  if(!data) return;
 
-  window.markers.forEach(m => map.removeLayer(m));
+  window.markers.forEach(m=>map.removeLayer(m));
   window.markers = [];
 
-  Object.values(data).forEach(item => {
-    const marker = L.circleMarker([item.lat, item.lng], {
-      color: item.color || "#3388ff",
-      radius: 12,
-      fillOpacity: 0.9,
-      weight: 2
+  Object.values(data).forEach(item=>{
+    const color = tagColorMap[item.tag] || "#3388ff";
+    const marker = L.circleMarker([item.lat,item.lng],{
+      color: color,
+      radius:12,
+      fillOpacity:0.9,
+      weight:2
     }).addTo(map);
 
-    marker.bindPopup(
-      "<b>名前:</b> " + item.name + "<br>" +
-      "<b>コメント:</b> " + item.comment + "<br>" +
-      "<b>タグ:</b> " + item.tag
-    );
-
+    marker.data = item; // 言語切替用にデータ保持
     window.markers.push(marker);
   });
+
+  // 現在地がある場合、最寄りピン更新
+  if(userMarker) highlightNearest(userMarker.getLatLng());
+  updatePopups();
 });
+
+// --- 現在地取得 ---
+if(navigator.geolocation){
+  navigator.geolocation.getCurrentPosition(position=>{
+    const lat = position.coords.latitude;
+    const lng = position.coords.longitude;
+    if(userMarker) map.removeLayer(userMarker);
+    userMarker = L.marker([lat,lng],{title:"現在地"}).addTo(map)
+      .bindPopup((currentLang==='ja')?"あなたの現在地":"Your location").openPopup();
+    map.setView([lat,lng],15);
+    highlightNearest(L.latLng(lat,lng));
+  });
+}
+
+// --- 最寄りピンハイライト ---
+function highlightNearest(userLatLng){
+  if(!window.markers.length) return;
+  let minDist = Infinity, nearest = null;
+  window.markers.forEach(m=>{
+    const d = getDistance(userLatLng.lat,userLatLng.lng,m.getLatLng().lat,m.getLatLng().lng);
+    if(d<minDist){ minDist=d; nearest=m; }
+    m.setStyle({weight:2});
+  });
+  if(nearest){
+    nearest.setStyle({weight:4, color:"#ff33aa"});
+    nearest.openPopup();
+    nearestMarker = nearest;
+  }
+}
 </script>
 </body>
 </html>
