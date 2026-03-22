@@ -1,13 +1,18 @@
 <!DOCTYPE html>
 <html>
 <head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>リアルタイム地図</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <style>
-  #map { height: 100vh; }
+  html, body, #map {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
 </style>
 </head>
 <body>
@@ -19,11 +24,16 @@ const firebaseConfig = {
   databaseURL: "https://map-yoisyo-default-rtdb.firebaseio.com",
   projectId: "map-yoisyo"
 };
-
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-const map = L.map('map').setView([35.681, 139.767], 13);
+const map = L.map('map', {
+  zoomControl: true,
+  scrollWheelZoom: true,
+  touchZoom: true,
+  doubleClickZoom: true
+}).setView([35.681, 139.767], 13);
+
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap'
 }).addTo(map);
@@ -34,20 +44,17 @@ db.ref("locations").on("value", (snapshot) => {
   const data = snapshot.val();
   if (!data) return;
 
-  // 既存マーカーを削除
   window.markers.forEach(m => map.removeLayer(m));
   window.markers = [];
 
   Object.values(data).forEach(item => {
-    // タグ色を使ってマーカーを作成
     const marker = L.circleMarker([item.lat, item.lng], {
       color: item.color || "#3388ff",
-      radius: 10,
-      fillOpacity: 0.8,
+      radius: 12,
+      fillOpacity: 0.9,
       weight: 2
     }).addTo(map);
 
-    // ポップアップを見やすく表示
     marker.bindPopup(
       "<b>名前:</b> " + item.name + "<br>" +
       "<b>コメント:</b> " + item.comment + "<br>" +
