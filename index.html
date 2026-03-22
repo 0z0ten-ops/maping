@@ -5,8 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>史跡マップ</title>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css"/>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
@@ -14,55 +15,90 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
 <style>
-html,body,#map { height:100%; margin:0; }
+html,body,#map { height:100%; margin:0; font-family:'Noto Sans JP', sans-serif; }
 
-.panel {
-  position:absolute;
-  right:10px;
-  top:10px;
-  z-index:1000;
-  background:white;
-  padding:8px;
-  border-radius:6px;
+/* 下部コントロールバー */
+.bottom-bar {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  background: rgba(245,239,230,0.95);
+  backdrop-filter: blur(10px);
+  display: flex;
+  justify-content: space-around;
+  padding: 10px 0;
+  z-index: 1000;
+  box-shadow: 0 -2px 8px rgba(0,0,0,0.15);
 }
 
 /* ボタン */
+.control-group {
+  display: flex;
+  gap: 6px;
+}
+
 button {
-  margin:2px;
-  padding:5px 8px;
-  border:1px solid #ccc;
-  background:#f0f0f0;
-  cursor:pointer;
+  border: none;
+  border-radius: 20px;
+  padding: 6px 12px;
+  background: #d6c3a3;
+  color: #3e2f1c;
+  font-size: 12px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+button:hover {
+  background: #c4ae8a;
 }
 
 /* 選択中 */
 .active {
-  background:#4CAF50;
-  color:white;
-  border:1px solid #2e7d32;
+  background: #6f4e37;
+  color: white;
+}
+
+/* ポップアップ */
+.leaflet-popup-content-wrapper {
+  border-radius: 12px;
+  background: #fffaf3;
+  color: #3e2f1c;
+}
+
+/* おすすめラベル */
+.recommend {
+  background: #fff3d6;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid #d6c3a3;
+  font-size: 12px;
+  font-weight: bold;
 }
 </style>
 </head>
 
 <body>
 
-<div class="panel">
-  🌐<br>
-  <button id="lang-ja" onclick="setLanguage('ja')">JP</button>
-  <button id="lang-en" onclick="setLanguage('en')">EN</button><br>
-  🚶<br>
-  <button id="t-foot" onclick="setTransport('foot')">徒歩</button>
-  <button id="t-bike" onclick="setTransport('bike')">自転車</button>
-  <button id="t-car" onclick="setTransport('car')">車</button>
-</div>
-
 <div id="map"></div>
+
+<!-- 下部バー -->
+<div class="bottom-bar">
+  <div class="control-group">
+    <button id="lang-ja" onclick="setLanguage('ja')">JP</button>
+    <button id="lang-en" onclick="setLanguage('en')">EN</button>
+  </div>
+  <div class="control-group">
+    <button id="t-foot" onclick="setTransport('foot')">徒歩</button>
+    <button id="t-bike" onclick="setTransport('bike')">自転車</button>
+    <button id="t-car" onclick="setTransport('car')">車</button>
+  </div>
+</div>
 
 <script>
 // Firebase
 const firebaseConfig = {
-  apiKey: "AIzaSyA_bAVs54VH8egBWlLHGXpq-34HNR97PRg",
-  databaseURL: "https://map-yoisyo-default-rtdb.firebaseio.com"
+  apiKey:"AIzaSyA_bAVs54VH8egBWlLHGXpq-34HNR97PRg",
+  databaseURL:"https://map-yoisyo-default-rtdb.firebaseio.com"
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
@@ -71,18 +107,11 @@ const db = firebase.database();
 const map = L.map('map').setView([35.681,139.767],13);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-let markers=[];
-let userMarker=null;
-let routeLine=null;
-let routingControl=null;
-let nearest=null;
-let recommendLabel=null;
+let markers=[], userMarker=null, nearest=null;
+let routingControl=null, routeLine=null;
 
-let currentLang="ja";
+let lang="ja";
 let transport="foot";
-
-// 速度
-const speed={foot:4.8,bike:17,car:50};
 
 // 色
 const colors={
@@ -90,27 +119,24 @@ const colors={
   "史跡A（観光名所級）":"yellow",
   "史跡B（小規模）":"orange",
   "噂":"purple",
-  "川に関する史跡":"blue",
-  "その他":"black"
+  "川に関する史跡":"blue"
 };
 
-// 翻訳
-function t(txt){
-  const d={
-    "おすすめはここです！":"Recommended spot!",
-    "ルート表示":"Show route",
-    "所要時間":"Time"
-  };
-  return currentLang==="ja"?txt:(d[txt]||txt);
-}
+// 速度
+const speed={foot:4.8,bike:17,car:50};
 
-// ボタン状態更新
-function updateButtons(){
+// UI更新
+function updateUI(){
   document.querySelectorAll("button").forEach(b=>b.classList.remove("active"));
-
-  document.getElementById("lang-"+currentLang).classList.add("active");
+  document.getElementById("lang-"+lang).classList.add("active");
   document.getElementById("t-"+transport).classList.add("active");
 }
+
+// 言語
+function setLanguage(l){ lang=l; updateUI(); }
+
+// 交通
+function setTransport(t){ transport=t; updateUI(); }
 
 // 距離
 function dist(a,b){
@@ -131,30 +157,15 @@ function time(a,b){
   return H>0?`${H}時間${M}分`:`${M}分`;
 }
 
-// 言語
-function setLanguage(l){
-  currentLang=l;
-  updateButtons();
-}
-
-// 交通
-function setTransport(m){
-  transport=m;
-  updateButtons();
-}
-
 // ルート
 function drawRoute(from,to){
-  if(routeLine){ map.removeLayer(routeLine); }
-  if(routingControl){ map.removeControl(routingControl); }
+  if(routeLine) map.removeLayer(routeLine);
+  if(routingControl) map.removeControl(routingControl);
 
   try{
     routingControl=L.Routing.control({
       waypoints:[from,to],
-      show:false,
-      router:L.Routing.osrmv1({
-        serviceUrl:'https://router.project-osrm.org/route/v1'
-      })
+      show:false
     }).on("routingerror",fallback).addTo(map);
   }catch{ fallback(); }
 
@@ -169,15 +180,13 @@ function findNearest(){
   let min=Infinity;
   markers.forEach(m=>{
     const d=dist(userMarker.getLatLng(),m.getLatLng());
-    if(d<min){ min=d; nearest=m; }
+    if(d<min){min=d; nearest=m;}
   });
 
   if(nearest){
-    if(recommendLabel) map.removeLayer(recommendLabel);
-    recommendLabel = L.marker(nearest.getLatLng(),{
-      icon: L.divIcon({
-        className: "",
-        html: `<div style="background:yellow;padding:3px;border:1px solid black;">${t("おすすめはここです！")}</div>`
+    L.marker(nearest.getLatLng(),{
+      icon:L.divIcon({
+        html:`<div class="recommend">おすすめ</div>`
       })
     }).addTo(map);
   }
@@ -198,13 +207,13 @@ db.ref("locations").on("value",snap=>{
     }).addTo(map);
 
     m.on("click",()=>{
-      if(!userMarker) return alert("現在地が取得できません");
+      if(!userMarker) return alert("現在地取得できません");
 
-      let msg=`<b>${d.name}</b><br>${d.comment}<br>${d.tag}`;
-      msg+=`<br>${t("所要時間")}: ${time(userMarker.getLatLng(),m.getLatLng())}`;
-      msg+=`<br><button onclick="goRoute(${d.lat},${d.lng})">${t("ルート表示")}</button>`;
+      const txt=`<b>${d.name}</b><br>${d.comment}<br>${d.tag}
+      <br>所要時間:${time(userMarker.getLatLng(),m.getLatLng())}
+      <br><button onclick="go(${d.lat},${d.lng})">ルート</button>`;
 
-      m.bindPopup(msg).openPopup();
+      m.bindPopup(txt).openPopup();
     });
 
     markers.push(m);
@@ -213,8 +222,8 @@ db.ref("locations").on("value",snap=>{
   findNearest();
 });
 
-// ルートボタン
-function goRoute(lat,lng){
+// ルート
+function go(lat,lng){
   drawRoute(userMarker.getLatLng(),L.latLng(lat,lng));
 }
 
@@ -227,8 +236,8 @@ navigator.geolocation.getCurrentPosition(pos=>{
   findNearest();
 });
 
-// 初期状態
-updateButtons();
+// 初期UI
+updateUI();
 
 </script>
 </body>
