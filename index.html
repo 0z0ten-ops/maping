@@ -28,6 +28,9 @@
   <button id="enBtn">English</button>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
 <script>
 // Firebase設定
 const firebaseConfig = {
@@ -54,17 +57,12 @@ document.getElementById('enBtn').onclick = ()=>{ language='en'; loadMarkers(); }
 
 // 現在地
 let currentLocation = null;
-if(navigator.geolocation){
-  navigator.geolocation.getCurrentPosition(pos=>{
-    currentLocation = [pos.coords.latitude, pos.coords.longitude];
-    map.setView(currentLocation,13);
-    L.circle(currentLocation,{radius:5,color:'blue'}).addTo(map);
-    loadMarkers();
-  });
-}else{
-  alert('現在地を取得できません');
+navigator.geolocation.getCurrentPosition(pos=>{
+  currentLocation = [pos.coords.latitude, pos.coords.longitude];
+  map.setView(currentLocation,13);
+  L.circle(currentLocation,{radius:5,color:'blue'}).addTo(map);
   loadMarkers();
-}
+}, ()=>{ loadMarkers(); });
 
 // カテゴリ翻訳
 const categoryMap = {
@@ -75,7 +73,7 @@ const categoryMap = {
   "川に関する史跡":"River"
 };
 
-// ピン画像URL（Googleコラボで指定していた色）
+// カラーピン画像
 const tagIconMap = {
   "展示施設（博物館 等）":"https://raw.githubusercontent.com/yourusername/icons/master/yellow.png",
   "史跡A（観光名所級）":"https://raw.githubusercontent.com/yourusername/icons/master/darkred.png",
@@ -89,7 +87,7 @@ let routeControl = null;
 let routeTarget = null;
 let recommendMarker = null;
 
-// 距離計算
+// 距離計算（簡易）
 function distanceKm(lat1,lng1,lat2,lng2){
   const R=6371;
   const dLat=(lat2-lat1)*Math.PI/180;
@@ -102,18 +100,19 @@ function distanceKm(lat1,lng1,lat2,lng2){
 function updateRoute(){
   if(routeControl) map.removeControl(routeControl);
   if(!currentLocation || !routeTarget) return;
+  const profile = transportMode==='foot'?'foot':transportMode==='bike'?'bike':'car';
 
   routeControl = L.Routing.control({
     waypoints: [L.latLng(currentLocation[0], currentLocation[1]), L.latLng(routeTarget[0], routeTarget[1])],
     lineOptions: { styles:[{color:'blue', opacity:0.6, weight:5}] },
-    router: L.Routing.osrmv1({ serviceUrl:'https://router.project-osrm.org/route/v1', profile:transportMode }),
+    router: L.Routing.osrmv1({ serviceUrl:'https://router.project-osrm.org/route/v1', profile:profile }),
     createMarker: ()=>null,
     routeWhileDragging:false,
     show:false,
     fitSelectedRoutes:true
   }).addTo(map);
 
-  // 距離・所要時間表示
+  // 所要時間計算
   const dist=distanceKm(currentLocation[0],currentLocation[1],routeTarget[0],routeTarget[1]);
   const speed = transportMode==='foot'?4.8: transportMode==='bike'?17:50;
   let t=dist/speed*60;
@@ -124,11 +123,11 @@ function updateRoute(){
   recommendMarker=L.marker(routeTarget,{icon:L.divIcon({
     className:'recommend-label',
     html: language==='ja'?`おすすめはここです！<br>距離:${dist.toFixed(2)}km 所要時間:${timeText}`:`Recommended here!<br>Distance:${dist.toFixed(2)}km Time:${timeText}`,
-    iconSize:[120,40]
+    iconSize:[140,40]
   })}).addTo(map);
 }
 
-// マーカー表示
+// マーカー読み込み
 function loadMarkers(){
   db.ref("locations").once('value').then(snapshot=>{
     const data = snapshot.val();
@@ -143,10 +142,8 @@ function loadMarkers(){
       const cat = language==='en'? categoryMap[item.category]||item.category : item.category||'';
       const commentNotice = language==='en'? '<i>This comment is in Japanese</i>':'';
       const questionText = language==='en'? 'Show route?':'ルートを表示しますか？';
-
       const iconUrl = tagIconMap[item.category]||tagIconMap['噂'];
       const icon = L.icon({iconUrl:iconUrl, iconSize:[30,40], iconAnchor:[15,40]});
-
       const popupContent = `<b>${item.name}</b><br>${cat}<br>${item.comment||''}<br>${commentNotice}<br>
         <button onclick="showRoute(${item.lat},${item.lng})">${questionText}</button>`;
 
