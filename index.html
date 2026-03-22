@@ -12,6 +12,8 @@
     border-radius: 4px; 
     font-weight: bold;
     border: 1px solid black;
+    position: relative;
+    z-index: 500;
   }
   .route-button {
     margin-top: 5px;
@@ -68,31 +70,48 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:
 
 // カラーピン設定
 const tagIconMap = {
-  "展示施設（博物館 等）": "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-yellow.png",
-  "史跡A（観光名所級）": "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png",
+  "展示施設（博物館 等）": "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png",
+  "史跡A（観光名所級）": "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-yellow.png",
   "史跡B（小規模）": "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-orange.png",
-  "噂": "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-black.png",
-  "川に関する史跡": "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png"
+  "噂": "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-violet.png",
+  "川に関する史跡": "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png",
+  "その他": "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-black.png"
 };
 
 let markers = [];
 let recommendMarker = null;
 let routeLine = null;
-let currentLocation = [35.681, 139.767]; // 仮の現在地
+let currentLocation = [35.681, 139.767];
 let transportMode = 'walking';
 
 document.getElementById('transportMode').addEventListener('change',(e)=>{
   transportMode = e.target.value;
 });
 
-// 距離計算（直線距離, km）
-function distanceKm(lat1, lng1, lat2, lng2){
-  const R = 6371;
-  const dLat = (lat2-lat1)*Math.PI/180;
-  const dLng = (lng2-lng1)*Math.PI/180;
+function distanceKm(lat1,lng1,lat2,lng2){
+  const R=6371;
+  const dLat=(lat2-lat1)*Math.PI/180;
+  const dLng=(lng2-lng1)*Math.PI/180;
   const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
   const c = 2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
   return R*c;
+}
+
+// 道路ルート取得
+async function showRoute(lat,lng){
+  if(routeLine){ map.removeLayer(routeLine); routeLine=null; }
+  const url = `https://router.project-osrm.org/route/v1/${transportMode}/${currentLocation[1]},${currentLocation[0]};${lng},${lat}?overview=full&geometries=geojson`;
+  const res = await fetch(url);
+  const data = await res.json();
+  if(!data.routes || data.routes.length===0){ alert("ルート取得できません"); return; }
+  const route = data.routes[0];
+  const coords = route.geometry.coordinates.map(c=>[c[1],c[0]]);
+  routeLine = L.polyline(coords,{color:'blue'}).addTo(map);
+  const minutes = Math.round(route.duration/60);
+  const h = Math.floor(minutes/60);
+  const m = minutes%60;
+  let timeText = h>0? `${h}時間${m}分` : `${m}分`;
+  alert(`所要時間: ${timeText} (${transportMode})`);
 }
 
 // マーカー読み込み
@@ -101,62 +120,47 @@ function loadMarkers(){
     const data = snapshot.val();
     if(!data){ console.log("locationsが空"); return; }
 
-    markers.forEach(m => map.removeLayer(m));
+    markers.forEach(m=>map.removeLayer(m));
     markers=[];
     if(recommendMarker){ map.removeLayer(recommendMarker); recommendMarker=null; }
     if(routeLine){ map.removeLayer(routeLine); routeLine=null; }
 
-    let nearest = null;
-    let nearestDist = Infinity;
+    let nearest=null;
+    let nearestDist=Infinity;
 
     Object.values(data).forEach(item=>{
-      const iconUrl = tagIconMap[item.category] || tagIconMap['噂'];
-      const icon = L.icon({ iconUrl: iconUrl, iconSize:[25,41], iconAnchor:[12,41] });
+      let iconUrl = tagIconMap[item.category] || tagIconMap['その他'];
+      const icon = L.icon({iconUrl:iconUrl,iconSize:[25,41],iconAnchor:[12,41]});
 
+      // ポップアップ内容
       let popupContent = `<b>${item.name}</b><br><i>${item.category}</i><br>${item.comment||''}<br>`;
       popupContent += `<button class="route-button" onclick="showRoute(${item.lat},${item.lng})">この場所までルートを表示しますか？</button>`;
 
-      const marker = L.marker([item.lat,item.lng],{icon:icon}).addTo(map).bindPopup(popupContent);
+      const marker = L.marker([item.lat,item.lng],{icon:icon}).addTo(map);
+      marker.bindPopup(popupContent);
+      marker.on('click',()=>{
+        // おすすめマーカー消す
+        if(recommendMarker){ map.removeLayer(recommendMarker); recommendMarker=null; }
+      });
       markers.push(marker);
 
       const dist = distanceKm(currentLocation[0],currentLocation[1],item.lat,item.lng);
-      if(dist < nearestDist){ nearestDist=dist; nearest=item; }
+      if(dist<nearestDist){ nearestDist=dist; nearest=item; }
     });
 
-    // 最寄りおすすめピン
+    // 最寄りおすすめマーカー
     if(nearest){
-      recommendMarker = L.marker([nearest.lat, nearest.lng],{
+      recommendMarker = L.marker([nearest.lat,nearest.lng],{
         icon:L.divIcon({className:'recommend-label',html:'おすすめはここです！'})
       }).addTo(map);
     }
   });
 }
 
-// OSRM を使った道路ルート取得
-async function showRoute(lat,lng){
-  if(routeLine){ map.removeLayer(routeLine); routeLine=null; }
-
-  const url = `https://router.project-osrm.org/route/v1/${transportMode}/${currentLocation[1]},${currentLocation[0]};${lng},${lat}?overview=full&geometries=geojson`;
-  const res = await fetch(url);
-  const data = await res.json();
-  if(!data.routes || data.routes.length===0) { alert("ルートが取得できません"); return; }
-
-  const route = data.routes[0];
-  const coords = route.geometry.coordinates.map(c => [c[1],c[0]]);
-  routeLine = L.polyline(coords,{color:'blue'}).addTo(map);
-
-  // 所要時間を分に変換
-  const minutes = Math.round(route.duration/60);
-  const h = Math.floor(minutes/60);
-  const m = minutes%60;
-  let timeText = h>0? `${h}時間${m}分` : `${m}分`;
-  alert(`所要時間: ${timeText} (${transportMode})`);
-}
-
 // 現在地取得
 navigator.geolocation.getCurrentPosition(
-  pos => { currentLocation=[pos.coords.latitude,pos.coords.longitude]; loadMarkers(); },
-  err => { loadMarkers(); }
+  pos=>{ currentLocation=[pos.coords.latitude,pos.coords.longitude]; loadMarkers(); },
+  err=>{ loadMarkers(); }
 );
 
 </script>
