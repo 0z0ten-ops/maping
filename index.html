@@ -1,17 +1,40 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
-<title>リアルタイム地図</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<meta charset="UTF-8">
+<title>史跡マップ</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <style>
-  #map { height: 100vh; }
+  #map { height: 100vh; width: 100%; }
+  .mode-select {
+    position: absolute;
+    top: 10px; left: 10px;
+    background:white; padding:5px;
+    border-radius:4px; z-index:1000;
+    border:1px solid black;
+  }
+  .recommend-label {
+    background: yellow; padding: 2px 6px;
+    border-radius:4px; font-weight:bold;
+    border:1px solid black; 
+  }
 </style>
 </head>
 <body>
 <div id="map"></div>
+<div class="mode-select">
+  交通手段:
+  <select id="transportMode">
+    <option value="walking">徒歩</option>
+    <option value="cycling">自転車</option>
+    <option value="driving">車</option>
+  </select>
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
 <script>
 const firebaseConfig = {
   apiKey: "AIzaSyA_bAVs54VH8egBWlLHGXpq-34HNR97PRg",
@@ -19,87 +42,108 @@ const firebaseConfig = {
   databaseURL: "https://map-yoisyo-default-rtdb.firebaseio.com",
   projectId: "map-yoisyo"
 };
-
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 const map = L.map('map').setView([35.681, 139.767], 13);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; OpenStreetMap'
-}).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(map);
 
-window.markers = [];
+let markers = [];
+let recommendMarker = null;
+let routeLine = null;
+let currentLocation = [35.681,139.767];
+let transportMode = 'walking';
 
-// Firebase locations ノードを監視
-db.ref("locations").on("value", (snapshot) => {
-  const data = snapshot.val();
-  if (!data) return;
+document.getElementById('transportMode').addEventListener('change', e=>{ transportMode=e.target.value; });
 
-  // 既存マーカーを削除
-  window.markers.forEach(m => map.removeLayer(m));
-  window.markers = [];
-
-  Object.values(data).forEach(item => {
-    const marker = L.circleMarker([item.lat, item.lng], {
-      color: item.color || "#3388ff",<!DOCTYPE html>
-<html>
-<head>
-<title>リアルタイム地図</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-<style>
-  #map { height: 100vh; }
-</style>
-</head>
-<body>
-<div id="map"></div>
-<script>
-const firebaseConfig = {
-  apiKey: "AIzaSyA_bAVs54VH8egBWlLHGXpq-34HNR97PRg",
-  authDomain: "map-yoisyo.firebaseapp.com",
-  databaseURL: "https://map-yoisyo-default-rtdb.firebaseio.com",
-  projectId: "map-yoisyo"
+// タグごとの色
+const tagColorMap = {
+  "展示施設（博物館 等）": "red",
+  "史跡A（観光名所級）": "yellow",
+  "史跡B（小規模）": "orange",
+  "噂": "purple",
+  "川に関する史跡": "blue",
+  "その他": "black"
 };
 
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+// 距離計算
+function distanceKm(lat1,lng1,lat2,lng2){
+  const R=6371;
+  const dLat=(lat2-lat1)*Math.PI/180;
+  const dLng=(lng2-lng1)*Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  const c = 2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+  return R*c;
+}
 
-const map = L.map('map').setView([35.681, 139.767], 13);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; OpenStreetMap'
-}).addTo(map);
+// 所要時間計算
+function travelTime(lat,lng){
+  const dist = distanceKm(currentLocation[0],currentLocation[1],lat,lng);
+  let speed=4.8; // 徒歩
+  if(transportMode=='cycling') speed=17;
+  else if(transportMode=='driving') speed=50;
+  const hours = dist/speed;
+  const h = Math.floor(hours);
+  const m = Math.round((hours-h)*60);
+  return h>0? `${h}時間${m}分` : `${m}分`;
+}
 
-window.markers = [];
+// 道路ルート表示
+async function showRoute(lat,lng){
+  if(routeLine){ map.removeLayer(routeLine); routeLine=null; }
+  const url = `https://router.project-osrm.org/route/v1/${transportMode}/${currentLocation[1]},${currentLocation[0]};${lng},${lat}?overview=full&geometries=geojson`;
+  const res = await fetch(url);
+  const data = await res.json();
+  if(!data.routes || data.routes.length===0){ alert("ルート取得できません"); return; }
+  const coords = data.routes[0].geometry.coordinates.map(c=>[c[1],c[0]]);
+  routeLine = L.polyline(coords,{color:'blue'}).addTo(map);
+  const timeText = travelTime(lat,lng);
+  alert(`所要時間: ${timeText} (${transportMode})`);
+}
 
-// Firebase locations ノードを監視
-db.ref("locations").on("value", (snapshot) => {
-  const data = snapshot.val();
-  if (!data) return;
+// マーカー読み込み
+function loadMarkers(){
+  db.ref("locations").once('value').then(snapshot=>{
+    const data = snapshot.val();
+    if(!data){ console.log("locations空"); return; }
 
-  // 既存マーカーを削除
-  window.markers.forEach(m => map.removeLayer(m));
-  window.markers = [];
+    markers.forEach(m=>map.removeLayer(m));
+    markers=[];
+    if(recommendMarker){ map.removeLayer(recommendMarker); recommendMarker=null; }
+    if(routeLine){ map.removeLayer(routeLine); routeLine=null; }
 
-  Object.values(data).forEach(item => {
-    const marker = L.circleMarker([item.lat, item.lng], {
-      color: item.color || "#3388ff",
-      radius: 8
-    }).addTo(map);
-    marker.bindPopup("<b>" + item.name + "</b><br>" + item.comment + "<br>タグ: " + item.tag);
-    window.markers.push(marker);
+    let nearest=null;
+    let nearestDist=Infinity;
+
+    Object.values(data).forEach(item=>{
+      const color = tagColorMap[item.tag] || tagColorMap["その他"];
+      const marker = L.circleMarker([item.lat,item.lng],{color:color,radius:8}).addTo(map);
+
+      const popupContent = `<b>${item.name}</b><br><i>${item.tag}</i><br>${item.comment||''}
+      <br><button onclick="showRoute(${item.lat},${item.lng})">この場所までルートを表示しますか？</button>`;
+
+      marker.bindPopup(popupContent);
+      marker.on('click',()=>{ if(recommendMarker){ map.removeLayer(recommendMarker); recommendMarker=null; } });
+
+      markers.push(marker);
+
+      const dist = distanceKm(currentLocation[0],currentLocation[1],item.lat,item.lng);
+      if(dist<nearestDist){ nearestDist=dist; nearest=item; }
+    });
+
+    if(nearest){
+      recommendMarker = L.marker([nearest.lat,nearest.lng],{
+        icon:L.divIcon({className:'recommend-label',html:'おすすめはここです！'})
+      }).addTo(map);
+    }
   });
-});
-</script>
-</body>
-</html>
-      radius: 8
-    }).addTo(map);
-    marker.bindPopup("<b>" + item.name + "</b><br>" + item.comment + "<br>タグ: " + item.tag);
-    window.markers.push(marker);
-  });
-});
+}
+
+// 現在地取得
+navigator.geolocation.getCurrentPosition(
+  pos=>{ currentLocation=[pos.coords.latitude,pos.coords.longitude]; loadMarkers(); },
+  err=>{ loadMarkers(); }
+);
 </script>
 </body>
 </html>
