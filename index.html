@@ -5,35 +5,31 @@
 <title>史跡マップ</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css"/>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.awesome-markers/2.0.4/leaflet.awesome-markers.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.awesome-markers/2.0.4/leaflet.awesome-markers.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <style>
   #map { height: 100vh; width: 100%; }
   .transport-btn { position:absolute; top:10px; left:10px; z-index:1000; }
   .transport-btn button { margin-right:5px; }
-  #recommend { position:absolute; top:60px; left:10px; z-index:1000; background:white; padding:5px; border-radius:5px; font-weight:bold; }
-  #lang { position:absolute; top:110px; left:10px; z-index:1000; background:white; padding:5px; border-radius:5px; }
+  .lang-btn { position:absolute; top:60px; left:10px; z-index:1000; background:white; padding:5px; border-radius:5px; }
+  .recommend-label { background: yellow; padding:2px 4px; border-radius:4px; font-weight:bold; }
 </style>
 </head>
 <body>
 <div id="map"></div>
+
 <div class="transport-btn">
   <button id="walk">徒歩</button>
   <button id="bike">自転車</button>
   <button id="car">車</button>
 </div>
-<div id="recommend"></div>
-<div id="lang">
+<div class="lang-btn">
   <button id="jaBtn">日本語</button>
   <button id="enBtn">English</button>
 </div>
 
 <script>
-// Firebase 設定
+// Firebase設定
 const firebaseConfig = {
   apiKey: "AIzaSyA_bAVs54VH8egBWlLHGXpq-34HNR97PRg",
   authDomain: "map-yoisyo.firebaseapp.com",
@@ -45,20 +41,32 @@ const db = firebase.database();
 
 // マップ初期化
 const map = L.map('map').setView([35.681, 139.767], 13);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; OpenStreetMap'
-}).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(map);
 
+// 交通手段・言語
 let transportMode = 'foot';
 let language = 'ja';
-let markers = [];
-let routeControl = null;
+document.getElementById('walk').onclick = ()=>{ transportMode='foot'; updateRoute(); };
+document.getElementById('bike').onclick = ()=>{ transportMode='bike'; updateRoute(); };
+document.getElementById('car').onclick = ()=>{ transportMode='car'; updateRoute(); };
+document.getElementById('jaBtn').onclick = ()=>{ language='ja'; loadMarkers(); };
+document.getElementById('enBtn').onclick = ()=>{ language='en'; loadMarkers(); };
+
+// 現在地
 let currentLocation = null;
-let routeTarget = null;
+if(navigator.geolocation){
+  navigator.geolocation.getCurrentPosition(pos=>{
+    currentLocation = [pos.coords.latitude, pos.coords.longitude];
+    map.setView(currentLocation,13);
+    L.circle(currentLocation,{radius:5,color:'blue'}).addTo(map);
+    loadMarkers();
+  });
+}else{
+  alert('現在地を取得できません');
+  loadMarkers();
+}
 
-const recommendDiv = document.getElementById('recommend');
-
-// カテゴリ簡易翻訳
+// カテゴリ翻訳
 const categoryMap = {
   "展示施設（博物館 等）":"Exhibition",
   "史跡A（観光名所級）":"Historic A",
@@ -67,45 +75,27 @@ const categoryMap = {
   "川に関する史跡":"River"
 };
 
-// タグごとの色分け
-const tagColorMap = {
-  "展示施設（博物館 等）":"green",
-  "史跡A（観光名所級）":"red",
-  "史跡B（小規模）":"orange",
-  "噂":"black",
-  "川に関する史跡":"blue"
+// ピン画像URL（Googleコラボで指定していた色）
+const tagIconMap = {
+  "展示施設（博物館 等）":"https://raw.githubusercontent.com/yourusername/icons/master/yellow.png",
+  "史跡A（観光名所級）":"https://raw.githubusercontent.com/yourusername/icons/master/darkred.png",
+  "史跡B（小規模）":"https://raw.githubusercontent.com/yourusername/icons/master/lightred.png",
+  "噂":"https://raw.githubusercontent.com/yourusername/icons/master/black.png",
+  "川に関する史跡":"https://raw.githubusercontent.com/yourusername/icons/master/blue.png"
 };
 
-// 交通手段切替
-document.getElementById('walk').onclick = ()=>{ transportMode='foot'; updateRoute(); };
-document.getElementById('bike').onclick = ()=>{ transportMode='bike'; updateRoute(); };
-document.getElementById('car').onclick = ()=>{ transportMode='car'; updateRoute(); };
+let markers = [];
+let routeControl = null;
+let routeTarget = null;
+let recommendMarker = null;
 
-// 言語切替
-document.getElementById('jaBtn').onclick = ()=>{ language='ja'; loadMarkers(); };
-document.getElementById('enBtn').onclick = ()=>{ language='en'; loadMarkers(); };
-
-// 現在地取得
-if(navigator.geolocation){
-  navigator.geolocation.getCurrentPosition(pos=>{
-    currentLocation = [pos.coords.latitude, pos.coords.longitude];
-    map.setView(currentLocation, 13);
-    L.circle(currentLocation, {radius:5, color:'blue'}).addTo(map);
-    loadMarkers();
-  });
-}else{
-  alert('現在地を取得できません');
-  loadMarkers();
-}
-
-// Haversine距離計算
+// 距離計算
 function distanceKm(lat1,lng1,lat2,lng2){
-  const R = 6371;
-  const dLat = (lat2-lat1)*Math.PI/180;
-  const dLng = (lng2-lng1)*Math.PI/180;
-  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
-  const c = 2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
-  return R*c;
+  const R=6371;
+  const dLat=(lat2-lat1)*Math.PI/180;
+  const dLng=(lng2-lng1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
 
 // ルート更新
@@ -115,24 +105,27 @@ function updateRoute(){
 
   routeControl = L.Routing.control({
     waypoints: [L.latLng(currentLocation[0], currentLocation[1]), L.latLng(routeTarget[0], routeTarget[1])],
-    lineOptions: { styles: [{color: 'blue', opacity:0.6, weight:5}] },
-    router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1', profile: transportMode }),
-    createMarker: ()=>{ return null; },
-    routeWhileDragging: false,
-    fitSelectedRoutes: true,
-    show: false
+    lineOptions: { styles:[{color:'blue', opacity:0.6, weight:5}] },
+    router: L.Routing.osrmv1({ serviceUrl:'https://router.project-osrm.org/route/v1', profile:transportMode }),
+    createMarker: ()=>null,
+    routeWhileDragging:false,
+    show:false,
+    fitSelectedRoutes:true
   }).addTo(map);
 
-  const dist = distanceKm(currentLocation[0], currentLocation[1], routeTarget[0], routeTarget[1]);
+  // 距離・所要時間表示
+  const dist=distanceKm(currentLocation[0],currentLocation[1],routeTarget[0],routeTarget[1]);
   const speed = transportMode==='foot'?4.8: transportMode==='bike'?17:50;
-  let t = dist/speed*60;
-  let timeText = t>60? Math.floor(t/60)+'時間'+Math.round(t%60)+'分' : Math.round(t)+'分';
+  let t=dist/speed*60;
+  let timeText = t>60? Math.floor(t/60)+'時間'+Math.round(t%60)+'分':Math.round(t)+'分';
 
-  if(language==='ja'){
-    recommendDiv.innerHTML = `おすすめはここです！<br>距離: ${dist.toFixed(2)} km, 所要時間: ${timeText}`;
-  }else{
-    recommendDiv.innerHTML = `Recommended here!<br>Distance: ${dist.toFixed(2)} km, Time: ${timeText}`;
-  }
+  // おすすめラベル
+  if(recommendMarker) map.removeLayer(recommendMarker);
+  recommendMarker=L.marker(routeTarget,{icon:L.divIcon({
+    className:'recommend-label',
+    html: language==='ja'?`おすすめはここです！<br>距離:${dist.toFixed(2)}km 所要時間:${timeText}`:`Recommended here!<br>Distance:${dist.toFixed(2)}km Time:${timeText}`,
+    iconSize:[120,40]
+  })}).addTo(map);
 }
 
 // マーカー表示
@@ -142,46 +135,40 @@ function loadMarkers(){
     if(!data) return;
 
     markers.forEach(m=>map.removeLayer(m));
-    markers = [];
-
-    let nearest = null;
-    let nearestDist = Infinity;
+    markers=[];
+    let nearest=null;
+    let nearestDist=Infinity;
 
     Object.values(data).forEach(item=>{
-      const cat = language==='en'? categoryMap[item.category] || item.category : item.category || '';
+      const cat = language==='en'? categoryMap[item.category]||item.category : item.category||'';
       const commentNotice = language==='en'? '<i>This comment is in Japanese</i>':'';
-      const questionText = language==='en'? 'Show route?' : 'ルートを表示しますか？';
+      const questionText = language==='en'? 'Show route?':'ルートを表示しますか？';
 
-      const icon = L.AwesomeMarkers.icon({
-        icon: 'info-sign',
-        markerColor: tagColorMap[item.category] || 'gray',
-        prefix: 'glyphicon'
-      });
-
-      const distTooltip = currentLocation? distanceKm(currentLocation[0], currentLocation[1], item.lat,item.lng).toFixed(2)+' km':'';
-      const speed = transportMode==='foot'?4.8: transportMode==='bike'?17:50;
-      const t = currentLocation? distanceKm(currentLocation[0], currentLocation[1], item.lat,item.lng)/speed*60:0;
-      const timeText = t>60? Math.floor(t/60)+'時間'+Math.round(t%60)+'分' : Math.round(t)+'分';
+      const iconUrl = tagIconMap[item.category]||tagIconMap['噂'];
+      const icon = L.icon({iconUrl:iconUrl, iconSize:[30,40], iconAnchor:[15,40]});
 
       const popupContent = `<b>${item.name}</b><br>${cat}<br>${item.comment||''}<br>${commentNotice}<br>
         <button onclick="showRoute(${item.lat},${item.lng})">${questionText}</button>`;
 
-      const marker = L.marker([item.lat,item.lng], {icon:icon}).addTo(map)
-        .bindPopup(popupContent)
-        .bindTooltip(`${distTooltip} / ${timeText}`, {permanent:true, direction:'top', offset:[0,-20]});
-      markers.push(marker);
+      const marker = L.marker([item.lat,item.lng],{icon:icon}).addTo(map).bindPopup(popupContent);
 
+      // 距離・所要時間ツールチップ
       if(currentLocation){
-        const d = distanceKm(currentLocation[0], currentLocation[1], item.lat,item.lng);
-        if(d<nearestDist){
-          nearestDist=d;
+        const dist=distanceKm(currentLocation[0],currentLocation[1],item.lat,item.lng);
+        const speed=transportMode==='foot'?4.8: transportMode==='bike'?17:50;
+        const t=dist/speed*60;
+        const timeText=t>60? Math.floor(t/60)+'時間'+Math.round(t%60)+'分':Math.round(t)+'分';
+        marker.bindTooltip(`${dist.toFixed(2)}km / ${timeText}`, {permanent:true, direction:'top', offset:[0,-20]});
+        if(dist<nearestDist){
+          nearestDist=dist;
           nearest=item;
         }
       }
+      markers.push(marker);
     });
 
     if(nearest && currentLocation){
-      routeTarget=[nearest.lat, nearest.lng];
+      routeTarget=[nearest.lat,nearest.lng];
       updateRoute();
     }
   });
