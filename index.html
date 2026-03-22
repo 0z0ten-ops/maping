@@ -115,12 +115,20 @@ let transport="foot";
 
 // 色
 const colors={
-  "展示施設（博物館 等）":"red",
-  "史跡A（観光名所級）":"yellow",
-  "史跡B（小規模）":"orange",
-  "噂":"purple",
-  "川に関する史跡":"blue"
+  "展示施設（博物館 等）":"#a67c52",
+  "史跡A（観光名所級）":"#c9a66b",
+  "史跡B（小規模）":"#d8b98a",
+  "噂":"#8c6f56",
+  "川に関する史跡":"#6fa3a6",
+  "その他":"#5a4a3f"
 };
+
+  const m=L.circleMarker([d.lat,d.lng],{
+  color:colors[d.tag]||colors["その他"],
+  radius:9,
+  fillOpacity:0.9,
+  weight:2
+}).addTo(map);
 
 // 速度
 const speed={foot:4.8,bike:17,car:50};
@@ -165,12 +173,26 @@ function drawRoute(from,to){
   try{
     routingControl=L.Routing.control({
       waypoints:[from,to],
-      show:false
+      show:false,
+      lineOptions:{
+        styles:[
+          {color:'#d6c3a3', weight:8, opacity:0.8}, // メイン
+          {color:'#6f4e37', weight:4, opacity:0.9}  // 中央ライン
+        ]
+      }
     }).on("routingerror",fallback).addTo(map);
-  }catch{ fallback(); }
+
+  }catch{
+    fallback();
+  }
 
   function fallback(){
-    routeLine=L.polyline([from,to],{color:"red"}).addTo(map);
+    routeLine=L.polyline([from,to],{
+      color:'#a67c52',
+      weight:6,
+      opacity:0.8,
+      dashArray:'6,8' // 点線でおしゃれ
+    }).addTo(map);
   }
 }
 
