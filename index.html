@@ -50,8 +50,6 @@
   let currentLang = 'ja';
   let userMarker = null;
   let nearestMarker = null;
-
-  // OSRMプロファイル対応
   const profileMap = {foot:'foot', bike:'bicycle', car:'car'};
 
   // 現在地取得
@@ -59,7 +57,7 @@
     navigator.geolocation.getCurrentPosition(pos=>{
       const latlng = [pos.coords.latitude, pos.coords.longitude];
       userMarker = L.marker(latlng, {title:"現在地"}).addTo(map);
-      findNearestMarker(); // 初回に最寄りピン強調
+      findNearestMarker();
     });
   }
 
@@ -73,24 +71,23 @@
 
   function setTransport(mode){
     transportMode = mode;
-    if(nearestMarker) drawRoute(nearestMarker); // 切替時に再描画
+    if(nearestMarker) drawRoute(nearestMarker);
   }
 
   function setLanguage(lang){
     currentLang = lang;
     markers.forEach(m=>{
       const data = m.data;
-      m.bindPopup(`<b>${currentLang==='en'?data.name_en:data.name}</b><br>`+
-                  `${currentLang==='en'?data.comment_en:data.comment}`);
+      const popupText = `<b>${currentLang==='en'?data.name_en:data.name}</b><br>`+
+                        `${currentLang==='en'?data.comment_en:data.comment}`;
+      m.bindPopup(popupText);
     });
   }
 
-  // Firebaseからマーカー取得
   db.ref("locations").on("value", snapshot=>{
     const data = snapshot.val();
     if(!data) return;
 
-    // 古いマーカー削除
     markers.forEach(m=>map.removeLayer(m));
     markers=[];
     nearestMarker=null;
@@ -108,21 +105,34 @@
       }).addTo(map);
 
       marker.data = item;
+
       marker.on('click', ()=>{
         nearestMarker = marker;
         highlightNearest(marker);
-        drawRoute(marker);
+
+        // ルート検索確認
+        const message = currentLang==='en'?
+          `Do you want to search a route to this location?`:
+          `この場所までのルートを検索しますか？`;
+        if(confirm(message)){
+          drawRoute(marker);
+        }
       });
 
-      marker.bindPopup(
-        `<b>${currentLang==='en'?item.name_en:item.name}</b><br>`+
-        `${currentLang==='en'?item.comment_en:item.comment}`
-      );
+      const popupText = `<b>${currentLang==='en'?item.name_en:item.name}</b><br>`+
+                        `${currentLang==='en'?item.comment_en:item.comment}`;
+      marker.bindPopup(popupText);
 
       markers.push(marker);
     });
 
-    findNearestMarker(); // 自動で最寄りピン強調
+    findNearestMarker();
+    if(nearestMarker){
+      const text = currentLang==='en'?'Recommended here!':'おすすめはここです！';
+      nearestMarker.bindPopup(`<b>${currentLang==='en'?nearestMarker.data.name_en:nearestMarker.data.name}</b><br>`+
+                              `${currentLang==='en'?nearestMarker.data.comment_en:nearestMarker.data.comment}<br>`+
+                              `<i>${text}</i>`).openPopup();
+    }
   });
 
   function highlightNearest(marker){
@@ -167,6 +177,7 @@
       ).openPopup();
     }).addTo(map);
   }
+
 </script>
 </body>
 </html>
