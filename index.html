@@ -26,8 +26,20 @@ html,body,#map { height:100%; margin:0; }
   border-radius:6px;
 }
 
+/* ボタン */
 button {
   margin:2px;
+  padding:5px 8px;
+  border:1px solid #ccc;
+  background:#f0f0f0;
+  cursor:pointer;
+}
+
+/* 選択中 */
+.active {
+  background:#4CAF50;
+  color:white;
+  border:1px solid #2e7d32;
 }
 </style>
 </head>
@@ -35,13 +47,13 @@ button {
 <body>
 
 <div class="panel">
-  🌐
-  <button onclick="setLanguage('ja')">JP</button>
-  <button onclick="setLanguage('en')">EN</button><br>
-  🚶
-  <button onclick="setTransport('foot')">徒歩</button>
-  <button onclick="setTransport('bike')">自転車</button>
-  <button onclick="setTransport('car')">車</button>
+  🌐<br>
+  <button id="lang-ja" onclick="setLanguage('ja')">JP</button>
+  <button id="lang-en" onclick="setLanguage('en')">EN</button><br>
+  🚶<br>
+  <button id="t-foot" onclick="setTransport('foot')">徒歩</button>
+  <button id="t-bike" onclick="setTransport('bike')">自転車</button>
+  <button id="t-car" onclick="setTransport('car')">車</button>
 </div>
 
 <div id="map"></div>
@@ -64,6 +76,7 @@ let userMarker=null;
 let routeLine=null;
 let routingControl=null;
 let nearest=null;
+let recommendLabel=null;
 
 let currentLang="ja";
 let transport="foot";
@@ -84,11 +97,19 @@ const colors={
 // 翻訳
 function t(txt){
   const d={
-    "おすすめ":"Recommended",
+    "おすすめはここです！":"Recommended spot!",
     "ルート表示":"Show route",
     "所要時間":"Time"
   };
   return currentLang==="ja"?txt:(d[txt]||txt);
+}
+
+// ボタン状態更新
+function updateButtons(){
+  document.querySelectorAll("button").forEach(b=>b.classList.remove("active"));
+
+  document.getElementById("lang-"+currentLang).classList.add("active");
+  document.getElementById("t-"+transport).classList.add("active");
 }
 
 // 距離
@@ -111,36 +132,32 @@ function time(a,b){
 }
 
 // 言語
-function setLanguage(l){ currentLang=l; }
+function setLanguage(l){
+  currentLang=l;
+  updateButtons();
+}
 
 // 交通
-function setTransport(m){ transport=m; }
+function setTransport(m){
+  transport=m;
+  updateButtons();
+}
 
-// ルート表示（安定版）
+// ルート
 function drawRoute(from,to){
+  if(routeLine){ map.removeLayer(routeLine); }
+  if(routingControl){ map.removeControl(routingControl); }
 
-  // 前の削除
-  if(routeLine){ map.removeLayer(routeLine); routeLine=null; }
-  if(routingControl){ map.removeControl(routingControl); routingControl=null; }
-
-  // OSRM試す
   try{
     routingControl=L.Routing.control({
       waypoints:[from,to],
       show:false,
       router:L.Routing.osrmv1({
-        serviceUrl:'https://router.project-osrm.org/route/v1',
-        profile: transport==="foot"?"foot":
-                 transport==="bike"?"bike":"car"
+        serviceUrl:'https://router.project-osrm.org/route/v1'
       })
-    })
-    .on("routingerror",()=>fallback())
-    .addTo(map);
-  }catch{
-    fallback();
-  }
+    }).on("routingerror",fallback).addTo(map);
+  }catch{ fallback(); }
 
-  // 失敗時
   function fallback(){
     routeLine=L.polyline([from,to],{color:"red"}).addTo(map);
   }
@@ -154,6 +171,16 @@ function findNearest(){
     const d=dist(userMarker.getLatLng(),m.getLatLng());
     if(d<min){ min=d; nearest=m; }
   });
+
+  if(nearest){
+    if(recommendLabel) map.removeLayer(recommendLabel);
+    recommendLabel = L.marker(nearest.getLatLng(),{
+      icon: L.divIcon({
+        className: "",
+        html: `<div style="background:yellow;padding:3px;border:1px solid black;">${t("おすすめはここです！")}</div>`
+      })
+    }).addTo(map);
+  }
 }
 
 // Firebase
@@ -165,22 +192,15 @@ db.ref("locations").on("value",snap=>{
   markers=[];
 
   Object.values(data).forEach(d=>{
-
     const m=L.circleMarker([d.lat,d.lng],{
       color:colors[d.tag]||"black",
       radius:10
     }).addTo(map);
 
-    m.data=d;
-
     m.on("click",()=>{
       if(!userMarker) return alert("現在地が取得できません");
 
-      findNearest();
-
       let msg=`<b>${d.name}</b><br>${d.comment}<br>${d.tag}`;
-      if(m===nearest) msg+=`<br><b>${t("おすすめ")}</b>`;
-
       msg+=`<br>${t("所要時間")}: ${time(userMarker.getLatLng(),m.getLatLng())}`;
       msg+=`<br><button onclick="goRoute(${d.lat},${d.lng})">${t("ルート表示")}</button>`;
 
@@ -189,9 +209,11 @@ db.ref("locations").on("value",snap=>{
 
     markers.push(m);
   });
+
+  findNearest();
 });
 
-// ルートボタン用
+// ルートボタン
 function goRoute(lat,lng){
   drawRoute(userMarker.getLatLng(),L.latLng(lat,lng));
 }
@@ -200,10 +222,13 @@ function goRoute(lat,lng){
 navigator.geolocation.getCurrentPosition(pos=>{
   const lat=pos.coords.latitude;
   const lng=pos.coords.longitude;
-
   userMarker=L.marker([lat,lng]).addTo(map).bindPopup("現在地");
   map.setView([lat,lng],15);
+  findNearest();
 });
+
+// 初期状態
+updateButtons();
 
 </script>
 </body>
