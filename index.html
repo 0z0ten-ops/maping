@@ -265,7 +265,7 @@ db.ref("locations").on("value",snap=>{
 
   Object.values(data).forEach(d=>{
     const m=L.circleMarker([d.lat,d.lng],{
-      color:colors[d.tag]||"black",
+      color:colors[d.tag]||colors["その他"],
       radius:10
     }).addTo(map);
 
