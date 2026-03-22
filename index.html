@@ -5,9 +5,6 @@
 <title>史跡マップ</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-<script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
 <style>
   #map { height: 100vh; }
   .control-panel {
@@ -28,8 +25,10 @@
   <button onclick="setLanguage('ja')">日本語</button>
   <button onclick="setLanguage('en')">English</button>
 </div>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <script>
-  // Firebase初期化
+  // Firebase 初期化
   const firebaseConfig = {
     apiKey: "AIzaSyA_bAVs54VH8egBWlLHGXpq-34HNR97PRg",
     authDomain: "map-yoisyo.firebaseapp.com",
@@ -45,12 +44,23 @@
   }).addTo(map);
 
   let markers = [];
-  let routingControl = null;
+  let routingLine = null;
   let transportMode = 'foot';
   let currentLang = 'ja';
   let userMarker = null;
   let nearestMarker = null;
-  const profileMap = {foot:'foot', bike:'bicycle', car:'car'};
+
+  // 速度設定 (km/h)
+  const speedMap = {foot:4.8, bike:17, car:50};
+
+  // 簡易翻訳マップ（カテゴリ/タグ）
+  const tagTranslate = {
+    "展示施設（博物館 等）": "Exhibition Facility (Museum)",
+    "史跡A（観光名所級）": "Historic Site A (Major Attraction)",
+    "史跡B（小規模）": "Historic Site B (Small)",
+    "噂": "Rumor",
+    "川に関する史跡": "River-related Site"
+  };
 
   // 現在地取得
   if(navigator.geolocation){
@@ -61,14 +71,6 @@
     });
   }
 
-  function formatDuration(sec){
-    const min = Math.floor(sec/60);
-    if(min<60) return min + "分";
-    const h = Math.floor(min/60);
-    const m = min % 60;
-    return h + "時間" + m + "分";
-  }
-
   function setTransport(mode){
     transportMode = mode;
     if(nearestMarker) drawRoute(nearestMarker);
@@ -77,17 +79,32 @@
   function setLanguage(lang){
     currentLang = lang;
     markers.forEach(m=>{
-      const data = m.data;
-      const popupText = `<b>${currentLang==='en'?data.name_en:data.name}</b><br>`+
-                        `${currentLang==='en'?data.comment_en:data.comment}`;
+      const item = m.data;
+      const tag = currentLang==='en' ? (tagTranslate[item.tag]||item.tag) : item.tag;
+      const popupText = `<b>${item.name}</b><br>カテゴリ: ${tag}<br>`+
+                        `${item.comment}<br><i>This comment is in Japanese</i>`;
       m.bindPopup(popupText);
     });
+  }
+
+  function calcDuration(lat1, lng1, lat2, lng2){
+    const R = 6371; // km
+    const dLat = (lat2-lat1)*Math.PI/180;
+    const dLng = (lng2-lng1)*Math.PI/180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const distance = R * c; // km
+    const hours = distance / speedMap[transportMode];
+    const h = Math.floor(hours);
+    const m = Math.round((hours-h)*60);
+    return h>0 ? `${h}時間${m}分` : `${m}分`;
   }
 
   db.ref("locations").on("value", snapshot=>{
     const data = snapshot.val();
     if(!data) return;
 
+    // 古いマーカー削除
     markers.forEach(m=>map.removeLayer(m));
     markers=[];
     nearestMarker=null;
@@ -110,17 +127,15 @@
         nearestMarker = marker;
         highlightNearest(marker);
 
-        // ルート検索確認
-        const message = currentLang==='en'?
-          `Do you want to search a route to this location?`:
-          `この場所までのルートを検索しますか？`;
-        if(confirm(message)){
+        const confirmMsg = "この場所までルートを検索しますか？";
+        if(confirm(confirmMsg)){
           drawRoute(marker);
         }
       });
 
-      const popupText = `<b>${currentLang==='en'?item.name_en:item.name}</b><br>`+
-                        `${currentLang==='en'?item.comment_en:item.comment}`;
+      const tag = tagTranslate[item.tag] || item.tag;
+      const popupText = `<b>${item.name}</b><br>カテゴリ: ${tag}<br>`+
+                        `${item.comment}<br><i>This comment is in Japanese</i>`;
       marker.bindPopup(popupText);
 
       markers.push(marker);
@@ -128,10 +143,8 @@
 
     findNearestMarker();
     if(nearestMarker){
-      const text = currentLang==='en'?'Recommended here!':'おすすめはここです！';
-      nearestMarker.bindPopup(`<b>${currentLang==='en'?nearestMarker.data.name_en:nearestMarker.data.name}</b><br>`+
-                              `${currentLang==='en'?nearestMarker.data.comment_en:nearestMarker.data.comment}<br>`+
-                              `<i>${text}</i>`).openPopup();
+      nearestMarker.bindPopup(`<b>${nearestMarker.data.name}</b><br>`+
+                              `おすすめはここです！`).openPopup();
     }
   });
 
@@ -155,29 +168,19 @@
 
   function drawRoute(marker){
     if(!userMarker) return;
-    if(routingControl) map.removeControl(routingControl);
+    if(routingLine) map.removeLayer(routingLine);
 
-    routingControl = L.Routing.control({
-      waypoints: [userMarker.getLatLng(), marker.getLatLng()],
-      routeWhileDragging:false,
-      show:false,
-      lineOptions:{styles:[{color:'blue', opacity:0.7, weight:5}]},
-      router:L.Routing.osrmv1({
-        serviceUrl:'https://router.project-osrm.org/route/v1',
-        profile: profileMap[transportMode]
-      }),
-      fitSelectedRoutes:true
-    }).on('routesfound', e=>{
-      const route = e.routes[0];
-      const duration = formatDuration(route.summary.totalTime);
-      marker.bindPopup(
-        `<b>${currentLang==='en'?marker.data.name_en:marker.data.name}</b><br>`+
-        `${currentLang==='en'?marker.data.comment_en:marker.data.comment}<br>`+
-        `所要時間: ${duration}`
-      ).openPopup();
-    }).addTo(map);
+    const from = userMarker.getLatLng();
+    const to = marker.getLatLng();
+    routingLine = L.polyline([from, to], {color:'blue', weight:5, opacity:0.7}).addTo(map);
+
+    const durationText = calcDuration(from.lat, from.lng, to.lat, to.lng);
+    const tag = tagTranslate[marker.data.tag] || marker.data.tag;
+    const popupText = `<b>${marker.data.name}</b><br>カテゴリ: ${tag}<br>`+
+                      `${marker.data.comment}<br>`+
+                      `所要時間: ${durationText}<br><i>This comment is in Japanese</i>`;
+    marker.bindPopup(popupText).openPopup();
   }
-
 </script>
 </body>
 </html>
