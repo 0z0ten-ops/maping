@@ -5,8 +5,10 @@
 <title>史跡マップ</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.awesome-markers/2.0.4/leaflet.awesome-markers.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.awesome-markers/2.0.4/leaflet.awesome-markers.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <style>
@@ -47,7 +49,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap'
 }).addTo(map);
 
-let transportMode = 'foot'; // foot/bike/car
+let transportMode = 'foot';
 let language = 'ja';
 let markers = [];
 let routeControl = null;
@@ -67,9 +69,9 @@ const categoryMap = {
 
 // タグごとの色分け
 const tagColorMap = {
-  "展示施設（博物館 等）":"yellow",
-  "史跡A（観光名所級）":"darkred",
-  "史跡B（小規模）":"lightred",
+  "展示施設（博物館 等）":"green",
+  "史跡A（観光名所級）":"red",
+  "史跡B（小規模）":"orange",
   "噂":"black",
   "川に関する史跡":"blue"
 };
@@ -96,7 +98,7 @@ if(navigator.geolocation){
   loadMarkers();
 }
 
-// 距離計算（Haversine）
+// Haversine距離計算
 function distanceKm(lat1,lng1,lat2,lng2){
   const R = 6371;
   const dLat = (lat2-lat1)*Math.PI/180;
@@ -106,7 +108,7 @@ function distanceKm(lat1,lng1,lat2,lng2){
   return R*c;
 }
 
-// ルート表示（Leaflet Routing Machine + OSRM）
+// ルート更新
 function updateRoute(){
   if(routeControl) map.removeControl(routeControl);
   if(!currentLocation || !routeTarget) return;
@@ -150,17 +152,23 @@ function loadMarkers(){
       const commentNotice = language==='en'? '<i>This comment is in Japanese</i>':'';
       const questionText = language==='en'? 'Show route?' : 'ルートを表示しますか？';
 
-      const icon = L.icon({
-        iconUrl: `https://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=%E2%80%A2|${tagColorMap[item.category]||'gray'}`,
-        iconSize: [21,34],
-        iconAnchor: [10,34],
-        popupAnchor: [0,-34]
+      const icon = L.AwesomeMarkers.icon({
+        icon: 'info-sign',
+        markerColor: tagColorMap[item.category] || 'gray',
+        prefix: 'glyphicon'
       });
 
-      const popupContent = `<b>${item.name}</b><br>${cat}<br>${item.comment || ''}<br>${commentNotice}<br>
+      const distTooltip = currentLocation? distanceKm(currentLocation[0], currentLocation[1], item.lat,item.lng).toFixed(2)+' km':'';
+      const speed = transportMode==='foot'?4.8: transportMode==='bike'?17:50;
+      const t = currentLocation? distanceKm(currentLocation[0], currentLocation[1], item.lat,item.lng)/speed*60:0;
+      const timeText = t>60? Math.floor(t/60)+'時間'+Math.round(t%60)+'分' : Math.round(t)+'分';
+
+      const popupContent = `<b>${item.name}</b><br>${cat}<br>${item.comment||''}<br>${commentNotice}<br>
         <button onclick="showRoute(${item.lat},${item.lng})">${questionText}</button>`;
 
-      const marker = L.marker([item.lat,item.lng], {icon:icon}).addTo(map).bindPopup(popupContent);
+      const marker = L.marker([item.lat,item.lng], {icon:icon}).addTo(map)
+        .bindPopup(popupContent)
+        .bindTooltip(`${distTooltip} / ${timeText}`, {permanent:true, direction:'top', offset:[0,-20]});
       markers.push(marker);
 
       if(currentLocation){
