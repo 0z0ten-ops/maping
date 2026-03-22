@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -15,51 +15,36 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
 <style>
-html, body { height:100%; margin:0; font-family:'Noto Sans JP', sans-serif; background:#f5f0e6; }
-#map { height:100%; }
+html,body,#map { height:100%; margin:0; font-family:'Noto Sans JP', sans-serif; }
 
-/* タイトルバー */
-.header {
-  position: fixed;
-  top:0; left:0; right:0;
-  height:50px;
-  background:#d6c3a3;
-  display:flex; align-items:center; justify-content:space-between;
-  padding:0 20px;
-  z-index:1001;
-  color:#3e2f1c;
-  font-weight:bold;
-  box-shadow:0 2px 6px rgba(0,0,0,0.2);
-}
-
-/* サイドバー */
-.sidebar {
-  position: fixed;
-  top:50px; left:0;
-  width:160px;
-  bottom:0;
+/* 下部コントロールバー */
+.bottom-bar {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
   background: rgba(245,239,230,0.95);
-  padding:10px;
-  display:flex;
-  flex-direction:column;
-  gap:12px;
-  z-index:1000;
-  box-shadow:2px 0 6px rgba(0,0,0,0.2);
+  backdrop-filter: blur(10px);
+  display: flex;
+  justify-content: space-around;
+  padding: 10px 0;
+  z-index: 1000;
+  box-shadow: 0 -2px 8px rgba(0,0,0,0.15);
 }
 
 /* ボタン */
+.control-group { display:flex; gap:6px; }
 button {
   border:none;
   border-radius:20px;
   padding:6px 12px;
-  background:#c4ae8a;
+  background:#d6c3a3;
   color:#3e2f1c;
-  font-size:13px;
+  font-size:12px;
   cursor:pointer;
   transition:0.2s;
 }
-button:hover { background:#b89e7a; }
-button.active { background:#6f4e37; color:white; }
+button:hover { background:#c4ae8a; }
+.active { background:#6f4e37; color:white; }
 
 /* ポップアップ */
 .leaflet-popup-content-wrapper {
@@ -68,16 +53,18 @@ button.active { background:#6f4e37; color:white; }
   color:#3e2f1c;
 }
 
-/* おすすめカード */
+/* おすすめラベル */
+.recommend-wrap { transform: translateY(-10px); }
 .recommend-box {
-  background: #fffaf3;
-  color: #5a3e2b;
-  padding: 8px 12px;
-  border-radius: 12px;
-  border: 1px solid #d6c3a3;
+  background:#fffaf3;
+  color:#5a3e2b;
+  padding:6px 10px;
+  border-radius:10px;
+  border:1px solid #d6c3a3;
+  font-size:12px;
   font-weight:600;
-  box-shadow: 0 3px 8px rgba(0,0,0,0.2);
-  white-space: nowrap;
+  box-shadow:0 3px 8px rgba(0,0,0,0.2);
+  white-space:nowrap;
   animation: float 2s ease-in-out infinite;
 }
 .recommend-arrow {
@@ -93,30 +80,34 @@ button.active { background:#6f4e37; color:white; }
   100% { transform: translateY(0px); }
 }
 
-/* メインマップ位置 */
-#map { position:absolute; top:50px; left:160px; right:0; bottom:0; }
+/* ピンアニメーション */
+.marker-circle {
+  transition: transform 0.2s, box-shadow 0.2s;
+  transform-origin: center;
+  animation: float 2s ease-in-out infinite;
+}
+.marker-circle:hover {
+  transform: scale(1.3);
+  box-shadow:0 4px 12px rgba(0,0,0,0.4);
+}
 </style>
 </head>
 
 <body>
+<div id="map"></div>
 
-<div class="header">
-  <div>史跡マップ</div>
-  <div>
+<!-- 下部バー -->
+<div class="bottom-bar">
+  <div class="control-group">
     <button id="lang-ja" onclick="setLanguage('ja')">JP</button>
     <button id="lang-en" onclick="setLanguage('en')">EN</button>
   </div>
+  <div class="control-group">
+    <button id="t-foot" onclick="setTransport('foot')">徒歩</button>
+    <button id="t-bike" onclick="setTransport('bike')">自転車</button>
+    <button id="t-car" onclick="setTransport('car')">車</button>
+  </div>
 </div>
-
-<div class="sidebar">
-  <div><b>交通手段</b></div>
-  <button id="t-foot" onclick="setTransport('foot')">徒歩</button>
-  <button id="t-bike" onclick="setTransport('bike')">自転車</button>
-  <button id="t-car" onclick="setTransport('car')">車</button>
-  <div id="recommend-panel" style="margin-top:20px;"></div>
-</div>
-
-<div id="map"></div>
 
 <script>
 // Firebase
@@ -127,14 +118,17 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-// Map初期化
+// Map
 const map = L.map('map').setView([35.681,139.767],13);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
 let markers=[], userMarker=null, nearest=null;
 let routingControl=null, routeLine=null;
-let lang="ja", transport="foot";
 
+let lang="ja";
+let transport="foot";
+
+// 色
 const colors={
   "展示施設（博物館 等）":"#a67c52",
   "史跡A（観光名所級）":"#c9a66b",
@@ -144,6 +138,7 @@ const colors={
   "その他":"#5a4a3f"
 };
 
+// 速度(km/h)
 const speed={foot:4.8,bike:17,car:50};
 
 // UI更新
@@ -154,10 +149,9 @@ function updateUI(){
 }
 
 // 言語
-function setLanguage(l){ lang=l; updateUI(); updatePopups(); }
-
+function setLanguage(l){ lang=l; updateUI(); }
 // 交通
-function setTransport(t){ transport=t; updateUI(); if(routingControl) routingControl.setWaypoints(routingControl.getWaypoints()); }
+function setTransport(t){ transport=t; updateUI(); }
 
 // 距離
 function dist(a,b){
@@ -168,7 +162,6 @@ function dist(a,b){
     Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLng/2)**2;
   return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
 }
-
 // 時間
 function time(a,b){
   const d=dist(a,b);
@@ -188,25 +181,44 @@ function drawRoute(from,to){
       waypoints:[from,to],
       show:false,
       lineOptions:{
-        styles:[{color:'#d6c3a3', weight:8, opacity:0.8},{color:'#6f4e37', weight:4, opacity:0.9}]
+        styles:[
+          {color:'#d6c3a3', weight:8, opacity:0.8},
+          {color:'#6f4e37', weight:4, opacity:0.9}
+        ]
       }
-    }).on("routingerror",()=>{routeLine=L.polyline([from,to],{color:'#a67c52',weight:6,opacity:0.8,dashArray:'6,8'}).addTo(map);}).addTo(map);
+    }).on("routingerror",fallback).addTo(map);
+
   }catch{
-    routeLine=L.polyline([from,to],{color:'#a67c52',weight:6,opacity:0.8,dashArray:'6,8'}).addTo(map);
+    fallback();
+  }
+
+  function fallback(){
+    routeLine=L.polyline([from,to],{
+      color:'#a67c52',
+      weight:6,
+      opacity:0.8,
+      dashArray:'6,8'
+    }).addTo(map);
   }
 }
 
 // 最寄りおすすめ
 function findNearest(){
-  if(!userMarker || !markers.length) return;
-  let min=Infinity, nearestMarker=null;
+  if(!userMarker) return;
+  let min=Infinity;
   markers.forEach(m=>{
     const d=dist(userMarker.getLatLng(),m.getLatLng());
-    if(d<min){min=d; nearestMarker=m;}
+    if(d<min){min=d; nearest=m;}
   });
-  if(nearestMarker){
-    const panel=document.getElementById("recommend-panel");
-    panel.innerHTML=`<div class="recommend-box">⭐ ${nearestMarker.data.name} まで ${time(userMarker.getLatLng(),nearestMarker.getLatLng())}</div>`;
+  if(nearest){
+    if(window.recommendMarker) map.removeLayer(window.recommendMarker);
+
+    window.recommendMarker = L.marker(nearest.getLatLng(),{
+      icon: L.divIcon({
+        className: "recommend-wrap",
+        html: `<div class="recommend-box">⭐ おすすめスポット</div><div class="recommend-arrow"></div>`
+      })
+    }).addTo(map);
   }
 }
 
@@ -219,12 +231,23 @@ db.ref("locations").on("value",snap=>{
   markers=[];
 
   Object.values(data).forEach(d=>{
-    const m=L.circleMarker([d.lat,d.lng],{color:colors[d.tag]||"black", radius:10, fillOpacity:0.9, weight:2}).addTo(map);
-    m.data=d;
+    const m=L.circleMarker([d.lat,d.lng],{
+      color:colors[d.tag]||"black",
+      radius:10,
+      fillOpacity:0.9,
+      weight:2,
+      className:"marker-circle"
+    }).addTo(map);
 
-    m.on("click",()=>{
+    m.data = d;
+
+    // ホバー拡大
+    m.on("mouseover", ()=> m.setStyle({radius:14}));
+    m.on("mouseout", ()=> m.setStyle({radius:10}));
+
+    m.on("click", ()=>{
       if(!userMarker) return alert("現在地取得できません");
-      const txt=`<b>${d.name}</b><br>${d.comment}<br>${d.tag}<br>所要時間: ${time(userMarker.getLatLng(),m.getLatLng())}<br><button onclick="go(${d.lat},${d.lng})">ルート</button>`;
+      const txt=`<b>${d.name}</b><br>${d.comment}<br>${d.tag}<br>所要時間:${time(userMarker.getLatLng(),m.getLatLng())}<br><button onclick="go(${d.lat},${d.lng})">ルート</button>`;
       m.bindPopup(txt).openPopup();
     });
 
@@ -234,8 +257,10 @@ db.ref("locations").on("value",snap=>{
   findNearest();
 });
 
-// ルートボタン
-function go(lat,lng){ drawRoute(userMarker.getLatLng(),L.latLng(lat,lng)); }
+// ルート
+function go(lat,lng){
+  drawRoute(userMarker.getLatLng(),L.latLng(lat,lng));
+}
 
 // 現在地
 navigator.geolocation.getCurrentPosition(pos=>{
