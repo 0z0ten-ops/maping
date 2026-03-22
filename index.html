@@ -3,8 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <title>史跡マップ</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <style>
@@ -12,6 +14,7 @@
   .transport-btn { position:absolute; top:10px; left:10px; z-index:1000; }
   .transport-btn button { margin-right:5px; }
   #recommend { position:absolute; top:60px; left:10px; z-index:1000; background:white; padding:5px; border-radius:5px; font-weight:bold; }
+  #lang { position:absolute; top:110px; left:10px; z-index:1000; background:white; padding:5px; border-radius:5px; }
 </style>
 </head>
 <body>
@@ -22,9 +25,12 @@
   <button id="car">車</button>
 </div>
 <div id="recommend"></div>
+<div id="lang">
+  <button id="jaBtn">日本語</button>
+  <button id="enBtn">English</button>
+</div>
 
 <script>
-// Firebase設定
 const firebaseConfig = {
   apiKey: "AIzaSyA_bAVs54VH8egBWlLHGXpq-34HNR97PRg",
   authDomain: "map-yoisyo.firebaseapp.com",
@@ -40,31 +46,14 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap'
 }).addTo(map);
 
-let transportMode = 'walk';
-const speed = { walk: 4.8, bike: 17, car: 50 }; // km/h
+let transportMode = 'foot'; // foot/bike/car
+let language = 'ja';
 let markers = [];
-let routeLayer = null;
+let routeControl = null;
 let currentLocation = null;
 let routeTarget = null;
+
 const recommendDiv = document.getElementById('recommend');
-
-// 交通手段切替
-document.getElementById('walk').onclick = ()=>{ transportMode='walk'; updateRoute(); };
-document.getElementById('bike').onclick = ()=>{ transportMode='bike'; updateRoute(); };
-document.getElementById('car').onclick = ()=>{ transportMode='car'; updateRoute(); };
-
-// 現在地取得
-if(navigator.geolocation){
-  navigator.geolocation.getCurrentPosition(pos=>{
-    currentLocation = [pos.coords.latitude, pos.coords.longitude];
-    map.setView(currentLocation, 13);
-    L.circle(currentLocation, {radius:5, color:'blue'}).addTo(map);
-    loadMarkers();
-  });
-} else {
-  alert('現在地を取得できません');
-  loadMarkers(); 
-}
 
 // カテゴリ簡易翻訳
 const categoryMap = {
@@ -74,6 +63,28 @@ const categoryMap = {
   "噂":"Rumor",
   "川に関する史跡":"River"
 };
+
+// 交通手段切替
+document.getElementById('walk').onclick = ()=>{ transportMode='foot'; updateRoute(); };
+document.getElementById('bike').onclick = ()=>{ transportMode='bike'; updateRoute(); };
+document.getElementById('car').onclick = ()=>{ transportMode='car'; updateRoute(); };
+
+// 言語切替
+document.getElementById('jaBtn').onclick = ()=>{ language='ja'; loadMarkers(); };
+document.getElementById('enBtn').onclick = ()=>{ language='en'; loadMarkers(); };
+
+// 現在地取得
+if(navigator.geolocation){
+  navigator.geolocation.getCurrentPosition(pos=>{
+    currentLocation = [pos.coords.latitude, pos.coords.longitude];
+    map.setView(currentLocation, 13);
+    L.circle(currentLocation, {radius:5, color:'blue'}).addTo(map);
+    loadMarkers();
+  });
+}else{
+  alert('現在地を取得できません');
+  loadMarkers();
+}
 
 // 距離計算（Haversine）
 function distanceKm(lat1,lng1,lat2,lng2){
@@ -85,30 +96,37 @@ function distanceKm(lat1,lng1,lat2,lng2){
   return R*c;
 }
 
-// 所要時間計算
-function calcTime(distKm,mode){
-  const t = distKm / speed[mode] * 60;
-  if(t>60){
-    const h = Math.floor(t/60);
-    const m = Math.round(t%60);
-    return `${h}時間${m}分`;
-  }
-  return `${Math.round(t)}分`;
-}
-
-// ルート表示（直線）
+// ルート表示（Leaflet Routing Machine）
 function updateRoute(){
-  if(routeLayer) map.removeLayer(routeLayer);
+  if(routeControl) map.removeControl(routeControl);
   if(!currentLocation || !routeTarget) return;
-  routeLayer = L.polyline([currentLocation, routeTarget], {color:'blue'}).addTo(map);
+
+  routeControl = L.Routing.control({
+    waypoints: [L.latLng(currentLocation[0], currentLocation[1]), L.latLng(routeTarget[0], routeTarget[1])],
+    lineOptions: { styles: [{color: 'blue', opacity:0.6, weight:5}] },
+    router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
+    createMarker: ()=>{ return null; },
+    routeWhileDragging: false,
+    fitSelectedRoutes: true,
+    show: false,
+    geocoder: L.Control.Geocoder.nominatim()
+  }).addTo(map);
+
   const dist = distanceKm(currentLocation[0], currentLocation[1], routeTarget[0], routeTarget[1]);
-  const time = calcTime(dist, transportMode);
-  recommendDiv.innerHTML = `おすすめはここです！<br>距離: ${dist.toFixed(2)} km, 所要時間: ${time}`;
+  const speed = transportMode==='foot'?4.8: transportMode==='bike'?17:50;
+  let t = dist/speed*60;
+  let timeText = t>60? Math.floor(t/60)+'時間'+Math.round(t%60)+'分' : Math.round(t)+'分';
+
+  if(language==='ja'){
+    recommendDiv.innerHTML = `おすすめはここです！<br>距離: ${dist.toFixed(2)} km, 所要時間: ${timeText}`;
+  }else{
+    recommendDiv.innerHTML = `Recommended here!<br>Distance: ${dist.toFixed(2)} km, Time: ${timeText}`;
+  }
 }
 
-// マーカー読み込み
+// マーカー表示
 function loadMarkers(){
-  db.ref("locations").on("value",(snapshot)=>{
+  db.ref("locations").once('value').then(snapshot=>{
     const data = snapshot.val();
     if(!data) return;
 
@@ -119,9 +137,13 @@ function loadMarkers(){
     let nearestDist = Infinity;
 
     Object.values(data).forEach(item=>{
-      const cat = categoryMap[item.category] || item.category || "";
-      const popupContent = `<b>${item.name}</b><br>${cat}<br>${item.comment || ""}<br><i>This comment is in Japanese</i><br>
-        <button onclick="showRoute(${item.lat},${item.lng})">ルートを表示</button>`;
+      const cat = language==='en'? categoryMap[item.category] || item.category : item.category || '';
+      const commentNotice = language==='en'? '<i>This comment is in Japanese</i>':'';
+      const questionText = language==='en'? 'Show route?' : 'ルートを表示しますか？';
+
+      const popupContent = `<b>${item.name}</b><br>${cat}<br>${item.comment || ''}<br>${commentNotice}<br>
+        <button onclick="showRoute(${item.lat},${item.lng})">${questionText}</button>`;
+
       const marker = L.marker([item.lat,item.lng]).addTo(map).bindPopup(popupContent);
       markers.push(marker);
 
@@ -135,13 +157,13 @@ function loadMarkers(){
     });
 
     if(nearest && currentLocation){
-      routeTarget = [nearest.lat, nearest.lng];
+      routeTarget=[nearest.lat, nearest.lng];
       updateRoute();
     }
   });
 }
 
-// ルートボタン
+// ルートボタン押下
 function showRoute(lat,lng){
   routeTarget=[lat,lng];
   updateRoute();
