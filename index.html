@@ -1,168 +1,53 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html>
 <head>
-<meta charset="UTF-8">
-<title>史跡マップ</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<title>リアルタイム地図</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <style>
-  #map { height: 100vh; width: 100%; }
-  .recommend-label {
-    background: yellow; 
-    padding: 2px 4px; 
-    border-radius: 4px; 
-    font-weight: bold;
-    border: 1px solid black;
-    position: relative;
-    z-index: 500;
-  }
-  .route-button {
-    margin-top: 5px;
-    display: block;
-    background-color: #337ab7;
-    color: white;
-    border: none;
-    padding: 3px 6px;
-    border-radius: 3px;
-    cursor: pointer;
-  }
-  .mode-select {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    background:white;
-    padding:5px;
-    border-radius:4px;
-    z-index: 1000;
-    border:1px solid black;
-  }
+  #map { height: 100vh; }
 </style>
 </head>
 <body>
 <div id="map"></div>
-<div class="mode-select">
-  <label>交通手段:
-    <select id="transportMode">
-      <option value="walking">徒歩</option>
-      <option value="cycling">自転車</option>
-      <option value="driving">車</option>
-    </select>
-  </label>
-</div>
-
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-
 <script>
-// Firebase設定
 const firebaseConfig = {
   apiKey: "AIzaSyA_bAVs54VH8egBWlLHGXpq-34HNR97PRg",
   authDomain: "map-yoisyo.firebaseapp.com",
   databaseURL: "https://map-yoisyo-default-rtdb.firebaseio.com",
   projectId: "map-yoisyo"
 };
+
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-// マップ初期化
 const map = L.map('map').setView([35.681, 139.767], 13);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap'
+}).addTo(map);
 
-// カラーピン設定
-const tagIconMap = {
-  "展示施設（博物館 等）": "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png",
-  "史跡A（観光名所級）": "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-yellow.png",
-  "史跡B（小規模）": "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-orange.png",
-  "噂": "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-violet.png",
-  "川に関する史跡": "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png",
-  "その他": "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-black.png"
-};
+window.markers = [];
 
-let markers = [];
-let recommendMarker = null;
-let routeLine = null;
-let currentLocation = [35.681, 139.767];
-let transportMode = 'walking';
+// Firebase locations ノードを監視
+db.ref("locations").on("value", (snapshot) => {
+  const data = snapshot.val();
+  if (!data) return;
 
-document.getElementById('transportMode').addEventListener('change',(e)=>{
-  transportMode = e.target.value;
-});
+  // 既存マーカーを削除
+  window.markers.forEach(m => map.removeLayer(m));
+  window.markers = [];
 
-function distanceKm(lat1,lng1,lat2,lng2){
-  const R=6371;
-  const dLat=(lat2-lat1)*Math.PI/180;
-  const dLng=(lng2-lng1)*Math.PI/180;
-  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
-  const c = 2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
-  return R*c;
-}
-
-// 道路ルート取得
-async function showRoute(lat,lng){
-  if(routeLine){ map.removeLayer(routeLine); routeLine=null; }
-  const url = `https://router.project-osrm.org/route/v1/${transportMode}/${currentLocation[1]},${currentLocation[0]};${lng},${lat}?overview=full&geometries=geojson`;
-  const res = await fetch(url);
-  const data = await res.json();
-  if(!data.routes || data.routes.length===0){ alert("ルート取得できません"); return; }
-  const route = data.routes[0];
-  const coords = route.geometry.coordinates.map(c=>[c[1],c[0]]);
-  routeLine = L.polyline(coords,{color:'blue'}).addTo(map);
-  const minutes = Math.round(route.duration/60);
-  const h = Math.floor(minutes/60);
-  const m = minutes%60;
-  let timeText = h>0? `${h}時間${m}分` : `${m}分`;
-  alert(`所要時間: ${timeText} (${transportMode})`);
-}
-
-// マーカー読み込み
-function loadMarkers(){
-  db.ref("locations").once('value').then(snapshot=>{
-    const data = snapshot.val();
-    if(!data){ console.log("locationsが空"); return; }
-
-    markers.forEach(m=>map.removeLayer(m));
-    markers=[];
-    if(recommendMarker){ map.removeLayer(recommendMarker); recommendMarker=null; }
-    if(routeLine){ map.removeLayer(routeLine); routeLine=null; }
-
-    let nearest=null;
-    let nearestDist=Infinity;
-
-    Object.values(data).forEach(item=>{
-      let iconUrl = tagIconMap[item.category] || tagIconMap['その他'];
-      const icon = L.icon({iconUrl:iconUrl,iconSize:[25,41],iconAnchor:[12,41]});
-
-      // ポップアップ内容
-      let popupContent = `<b>${item.name}</b><br><i>${item.category}</i><br>${item.comment||''}<br>`;
-      popupContent += `<button class="route-button" onclick="showRoute(${item.lat},${item.lng})">この場所までルートを表示しますか？</button>`;
-
-      const marker = L.marker([item.lat,item.lng],{icon:icon}).addTo(map);
-      marker.bindPopup(popupContent);
-      marker.on('click',()=>{
-        // おすすめマーカー消す
-        if(recommendMarker){ map.removeLayer(recommendMarker); recommendMarker=null; }
-      });
-      markers.push(marker);
-
-      const dist = distanceKm(currentLocation[0],currentLocation[1],item.lat,item.lng);
-      if(dist<nearestDist){ nearestDist=dist; nearest=item; }
-    });
-
-    // 最寄りおすすめマーカー
-    if(nearest){
-      recommendMarker = L.marker([nearest.lat,nearest.lng],{
-        icon:L.divIcon({className:'recommend-label',html:'おすすめはここです！'})
-      }).addTo(map);
-    }
+  Object.values(data).forEach(item => {
+    const marker = L.circleMarker([item.lat, item.lng], {
+      color: item.color || "#3388ff",
+      radius: 8
+    }).addTo(map);
+    marker.bindPopup("<b>" + item.name + "</b><br>" + item.comment + "<br>タグ: " + item.tag);
+    window.markers.push(marker);
   });
-}
-
-// 現在地取得
-navigator.geolocation.getCurrentPosition(
-  pos=>{ currentLocation=[pos.coords.latitude,pos.coords.longitude]; loadMarkers(); },
-  err=>{ loadMarkers(); }
-);
-
+});
 </script>
 </body>
 </html>
