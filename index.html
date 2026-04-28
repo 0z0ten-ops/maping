@@ -63,7 +63,6 @@ button {
 }
 
 button:hover { background:#c4ae8a; }
-.active { background:#6f4e37; color:white; }
 
 .marker-icon {
   transition: transform 0.2s;
@@ -112,7 +111,25 @@ button:hover { background:#c4ae8a; }
     transform: translateY(0px);
   }
 }
-
+ button.active {
+  background:#6f4e37;
+  color:white;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  transform: translateY(-2px);
+  border: 2px solid #fff;
+}
+  button:active {
+  transform: scale(0.95);
+}
+  .control-group {
+  display:flex;
+  gap:6px;
+  align-items:center;
+}
+.label {
+  font-size:12px;
+  margin-right:6px;
+}
 </style>
 </head>
 
@@ -224,12 +241,12 @@ db.ref("locations").on("value",snap=>{
       if(!userMarker) return alert("現在地取得できません");
 
       const txt=`
-        <b>${d.name}</b><br>
-        ${d.comment}<br>
-        ${d.tag}<br>
-        所要時間:${time(userMarker.getLatLng(),m.getLatLng())}
-      `;
-
+  <b>${d.name}</b><br>
+  ${d.comment}<br>
+  ${d.tag}<br>
+  所要時間:${time(userMarker.getLatLng(),m.getLatLng())}<br><br>
+  <button onclick="go(${d.lat},${d.lng})">ルート表示</button>
+`;
       m.unbindPopup();
       m.bindPopup(txt);
       m.openPopup();
@@ -294,9 +311,28 @@ navigator.geolocation.getCurrentPosition(pos=>{
 });
 
 // UI
-function setLanguage(l){ lang=l; }
-function setTransport(t){ transport=t; }
+function setLanguage(l){
+  lang = l;
+  updateUI();
+}
 
+function setTransport(t){
+  transport = t;
+  updateUI();
+}
+
+function updateUI(){
+
+  document.querySelectorAll("#lang-ja, #lang-en")
+    .forEach(b=>b.classList.remove("active"));
+
+  document.getElementById("lang-"+lang).classList.add("active");
+
+  document.querySelectorAll("#t-foot, #t-bike, #t-car")
+    .forEach(b=>b.classList.remove("active"));
+
+  document.getElementById("t-"+transport).classList.add("active");
+}
   function go(lat,lng){
   if(!userMarker){
     alert("現在地が取得できません");
@@ -309,6 +345,34 @@ function setTransport(t){ transport=t; }
   );
 }
 
+  let routingControl=null;
+
+function drawRoute(from,to){
+
+  if(routingControl){
+    map.removeLayer(routingControl);
+    routingControl = null;
+  }
+
+  routingControl = L.Routing.control({
+    waypoints: [from, to],
+    show:false,
+    addWaypoints:false,
+    draggableWaypoints:false,
+    fitSelectedRoutes:true,
+    routeWhileDragging:false,
+
+    lineOptions:{
+      styles:[
+        {color:'#d6c3a3', weight:6, opacity:0.8},
+        {color:'#6f4e37', weight:3, opacity:0.9}
+      ]
+    },
+
+    createMarker: function() { return null; } // ←これ超重要（ピン重複防止）
+  }).addTo(map);
+}
+  updateUI();
 </script>
 
 </body>
