@@ -138,21 +138,21 @@ function createIcon(tag){
   let svg="";
 
   if(tag.includes("展示施設"))
-    svg=`<svg width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#a67c52"/><text x="12" y="16" font-size="12" fill="white" text-anchor="middle">🏛️</text></svg>`;
+    svg=`<svg width="32" height="32" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#a67c52"/><text x="12" y="16" font-size="12" fill="white" text-anchor="middle">🏛️</text></svg>`;
   else if(tag.includes("史跡"))
-    svg=`<svg width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#c9a66b"/><text x="12" y="16" font-size="12" fill="white" text-anchor="middle">🗿</text></svg>`;
+    svg=`<svg width="32" height="32" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#c9a66b"/><text x="12" y="16" font-size="12" fill="white" text-anchor="middle">🗿</text></svg>`;
   else if(tag.includes("噂"))
-    svg=`<svg width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#8c6f56"/><text x="12" y="16" font-size="12" fill="white" text-anchor="middle">💬</text></svg>`;
+    svg=`<svg width="32" height="32" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#8c6f56"/><text x="12" y="16" font-size="12" fill="white" text-anchor="middle">💬</text></svg>`;
   else if(tag.includes("川"))
-    svg=`<svg width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#6fa3a6"/><text x="12" y="16" font-size="12" fill="white" text-anchor="middle">🌊</text></svg>`;
+    svg=`<svg width="32" height="32" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#6fa3a6"/><text x="12" y="16" font-size="12" fill="white" text-anchor="middle">🌊</text></svg>`;
   else
-    svg=`<svg width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#5a4a3f"/><text x="12" y="16" font-size="12" fill="white" text-anchor="middle">📍</text></svg>`;
+    svg=`<svg width="32" height="32" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#5a4a3f"/><text x="12" y="16" font-size="12" fill="white" text-anchor="middle">📍</text></svg>`;
 
   return L.divIcon({
     className:"marker-icon",
     html:svg,
-    iconSize:[24,24],
-    iconAnchor:[12,12]
+    iconSize:[32,32],
+    iconAnchor:[16,16]
   });
 }
 
@@ -181,7 +181,9 @@ db.ref("locations").on("value",snap=>{
         所要時間:${time(userMarker.getLatLng(),m.getLatLng())}
       `;
 
-      m.bindPopup(txt).openPopup();
+      m.unbindPopup();
+      m.bindPopup(txt);
+      m.openPopup();
     });
 
     markers.push(m);
