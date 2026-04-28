@@ -15,54 +15,42 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
 <style>
-html,body {
-  height:100%;
-  margin:0;
-  font-family:'Noto Sans JP', sans-serif;
-  background:#f5f2ed;
-}
+html,body { height:100%; margin:0; font-family:'Noto Sans JP', sans-serif; background:#f5f2ed; }
 
 .header {
-  position:absolute;
-  top:0; left:0; right:0;
-  height:60px;
-  background: rgba(214,195,163,0.95);
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  font-size:20px;
-  font-weight:600;
-  color:#3e2f1c;
-  z-index:1000;
+  position:absolute; top:0; left:0; right:0; height:60px;
+  background: rgba(214,195,163,0.95); backdrop-filter: blur(6px);
+  display:flex; align-items:center; justify-content:center;
+  font-size:20px; font-weight:600; color:#3e2f1c; z-index:1000;
+  box-shadow:0 2px 6px rgba(0,0,0,0.1); border-bottom-left-radius:12px; border-bottom-right-radius:12px;
 }
 
-#map {
-  position:absolute;
-  top:70px; bottom:70px;
-  left:10px; right:10px;
-  border-radius:16px;
-}
+#map { position:absolute; top:70px; bottom:70px; left:10px; right:10px; border-radius:16px; box-shadow:0 4px 12px rgba(0,0,0,0.1); }
 
 .bottom-bar {
-  position:absolute;
-  bottom:0;
-  left:0; right:0;
-  height:70px;
-  background: rgba(245,239,230,0.95);
-  display:flex;
-  justify-content:space-around;
-  align-items:center;
+  position:absolute; bottom:0; left:0; right:0; height:70px;
+  background: rgba(245,239,230,0.95); backdrop-filter: blur(10px);
+  display:flex; justify-content:space-around; align-items:center; z-index:1000;
+  box-shadow:0 -2px 8px rgba(0,0,0,0.15); border-top-left-radius:12px; border-top-right-radius:12px;
 }
+
+.control-group { display:flex; gap:6px; }
 
 button {
-  border:none;
-  border-radius:20px;
-  padding:6px 12px;
-  background:#d6c3a3;
+  border:none; border-radius:20px; padding:6px 12px;
+  background:#d6c3a3; color:#3e2f1c; font-size:12px; cursor:pointer;
 }
+.active { background:#6f4e37; color:white; }
 
-.marker-icon:hover {
-  transform: scale(1.3);
+.leaflet-popup-content-wrapper { border-radius:12px; background:#fffaf3; color:#3e2f1c; }
+
+.marker-icon { transition: transform 0.2s; }
+.marker-icon:hover { transform: scale(1.3); }
+
+.recommend-wrap { transform: translateY(-10px); }
+.recommend-box {
+  background:#fffaf3; padding:6px 10px; border-radius:10px;
+  border:1px solid #d6c3a3; font-size:12px; font-weight:600;
 }
 </style>
 </head>
@@ -73,9 +61,15 @@ button {
 <div id="map"></div>
 
 <div class="bottom-bar">
-  <button onclick="setTransport('foot')">徒歩</button>
-  <button onclick="setTransport('bike')">自転車</button>
-  <button onclick="setTransport('car')">車</button>
+  <div class="control-group">
+    <button id="lang-ja" onclick="setLanguage('ja')">JP</button>
+    <button id="lang-en" onclick="setLanguage('en')">EN</button>
+  </div>
+  <div class="control-group">
+    <button id="t-foot" onclick="setTransport('foot')">徒歩</button>
+    <button id="t-bike" onclick="setTransport('bike')">自転車</button>
+    <button id="t-car" onclick="setTransport('car')">車</button>
+  </div>
 </div>
 
 <script>
@@ -91,25 +85,30 @@ const db = firebase.database();
 const map = L.map('map').setView([35.681,139.767],13);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-let markers = [];
-let userMarker = null;
-let transport = "foot";
+let markers=[], userMarker=null;
+let routingControl=null, routeLine=null;
 
-const speed = {foot:4.8,bike:17,car:50};
+let lang="ja";
+let transport="foot";
 
-// 距離
+const speed={foot:4.8,bike:17,car:50};
+
+function updateUI(){
+  document.querySelectorAll("button").forEach(b=>b.classList.remove("active"));
+  document.getElementById("lang-"+lang).classList.add("active");
+  document.getElementById("t-"+transport).classList.add("active");
+}
+function setLanguage(l){ lang=l; updateUI(); }
+function setTransport(t){ transport=t; updateUI(); }
+
 function dist(a,b){
   const R=6371;
   const dLat=(b.lat-a.lat)*Math.PI/180;
   const dLng=(b.lng-a.lng)*Math.PI/180;
-  const x=Math.sin(dLat/2)**2+
-    Math.cos(a.lat*Math.PI/180)*
-    Math.cos(b.lat*Math.PI/180)*
-    Math.sin(dLng/2)**2;
+  const x=Math.sin(dLat/2)**2+Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLng/2)**2;
   return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
 }
 
-// 時間
 function time(a,b){
   const d=dist(a,b);
   const h=d/speed[transport];
@@ -118,24 +117,27 @@ function time(a,b){
   return H>0 ? `${H}時間${M}分` : `${M}分`;
 }
 
-// 和風ピン
-function createIcon(tag){
-  let icon = "🪨";
+function drawRoute(from,to){
+  if(routeLine) map.removeLayer(routeLine);
+  if(routingControl) map.removeControl(routingControl);
 
-  if(tag.includes("展示施設")) icon="🏯";
-  else if(tag.includes("史跡")) icon="⛩️";
-  else if(tag.includes("噂")) icon="🏮";
-  else if(tag.includes("川")) icon="🌊";
+  routingControl=L.Routing.control({
+    waypoints:[from,to],
+    show:false
+  }).addTo(map);
+}
 
+// ピン
+function createIcon(){
   return L.divIcon({
     className:"marker-icon",
-    html:`<div style="font-size:28px;">${icon}</div>`,
-    iconSize:[40,40],
-    iconAnchor:[20,20]
+    html:"📍",
+    iconSize:[30,30],
+    iconAnchor:[15,15]
   });
 }
 
-// Firebase読み込み
+// Firebase
 db.ref("locations").on("value",snap=>{
   const data=snap.val();
   if(!data) return;
@@ -144,20 +146,14 @@ db.ref("locations").on("value",snap=>{
   markers=[];
 
   Object.values(data).forEach(d=>{
-    const m = L.marker([d.lat,d.lng],{
-      icon:createIcon(d.tag)
-    }).addTo(map);
+    const m=L.marker([d.lat,d.lng],{icon:createIcon()}).addTo(map);
 
-    // 1回だけbind
-    m.bindPopup("");
+    m.bindPopup(""); // ←重要
 
     m.on("click",()=>{
-      if(!userMarker){
-        alert("現在地取得できません");
-        return;
-      }
+      if(!userMarker) return alert("現在地取得できません");
 
-      const txt = `
+      const txt=`
         <b>${d.name}</b><br>
         ${d.comment}<br>
         ${d.tag}<br>
@@ -173,11 +169,8 @@ db.ref("locations").on("value",snap=>{
   });
 });
 
-// ルート（簡易）
 function go(lat,lng){
-  L.polyline([userMarker.getLatLng(),[lat,lng]],{
-    color:'brown'
-  }).addTo(map);
+  drawRoute(userMarker.getLatLng(),L.latLng(lat,lng));
 }
 
 // 現在地
@@ -185,19 +178,11 @@ navigator.geolocation.getCurrentPosition(pos=>{
   const lat=pos.coords.latitude;
   const lng=pos.coords.longitude;
 
-  userMarker=L.marker([lat,lng],{
-    icon:L.divIcon({
-      html:"📍",
-      iconSize:[40,40]
-    })
-  }).addTo(map);
-
+  userMarker=L.marker([lat,lng]).addTo(map).bindPopup("現在地");
   map.setView([lat,lng],15);
 });
 
-function setTransport(t){
-  transport=t;
-}
+updateUI();
 </script>
 
 </body>
