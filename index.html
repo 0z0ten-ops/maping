@@ -3,86 +3,75 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>史跡マップ</title>
+<title>史跡カフェマップ</title>
 
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
 <style>
 html,body {
   height:100%;
   margin:0;
   font-family:'Noto Sans JP', sans-serif;
-  background:#f5f2ed;
+  background:#f3efe9;
 }
 
+/* ヘッダー */
 .header {
   position:absolute;
   top:0; left:0; right:0;
   height:60px;
-  background: rgba(214,195,163,0.95);
+  background:#ede4d3;
   display:flex;
   align-items:center;
   justify-content:center;
-  font-size:20px;
   font-weight:600;
-  color:#3e2f1c;
-  z-index:1000;
+  color:#5a4634;
+  border-bottom:1px solid #e0d6c5;
 }
 
+/* マップ */
 #map {
   position:absolute;
-  top:70px; bottom:0;
-  left:10px; right:10px;
-  border-radius:16px;
+  top:70px; bottom:20px;
+  left:12px; right:12px;
+  border-radius:20px;
+  box-shadow:0 8px 20px rgba(0,0,0,0.08);
 }
 
-/* おしゃれピン */
+/* ピン */
 .marker-icon {
-  transition: transform 0.2s ease, filter 0.2s ease;
+  transition: all 0.2s ease;
 }
 .marker-icon:hover {
-  transform: scale(1.35) translateY(-4px);
-  filter: brightness(1.1);
+  transform: scale(1.25) translateY(-3px);
 }
 
-/* おすすめ */
-.recommend {
-  animation: float 2s ease-in-out infinite;
+/* ポップアップ */
+.leaflet-popup-content-wrapper {
+  border-radius:16px;
+  background:#fffdf8;
+  color:#5a4634;
+  box-shadow:0 6px 16px rgba(0,0,0,0.12);
 }
-@keyframes float {
-  0%{transform:translateY(0);}
-  50%{transform:translateY(-6px);}
-  100%{transform:translateY(0);}
-}
+
 </style>
 </head>
 
 <body>
 
-<div class="header">史跡マップ</div>
+<div class="header">☕ 史跡カフェマップ</div>
 <div id="map"></div>
 
 <script>
-// Firebase
-const firebaseConfig = {
-  apiKey:"AIzaSyA_bAVs54VH8egBWlLHGXpq-34HNR97PRg",
-  databaseURL:"https://map-yoisyo-default-rtdb.firebaseio.com"
-};
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
 
-// Map（夜モード）
+// Map
 const map = L.map('map').setView([35.681,139.767],13);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-let markers=[];
 let userMarker=null;
-let selectedMarker=null;
+let markers=[];
 
 // 距離
 function dist(a,b){
@@ -96,91 +85,74 @@ function dist(a,b){
   return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
 }
 
-// おしゃれ和風ピン
-function createIcon(tag, highlight=false){
+// ☕ カフェ風ピン
+function createCafeIcon(tag){
 
-  let bg="#8b6f47";
-  let icon="🪨";
+  let color="#c8a97e"; // latte
+  let icon="☕";
 
-  if(tag.includes("展示施設")){ bg="#a67c52"; icon="🏯"; }
-  else if(tag.includes("史跡")){ bg="#b33a3a"; icon="⛩️"; }
-  else if(tag.includes("噂")){ bg="#c47a2c"; icon="🏮"; }
-  else if(tag.includes("川")){ bg="#3f88a6"; icon="〰️"; }
+  if(tag.includes("史跡")){ color="#b08968"; icon="📍"; }
+  if(tag.includes("川")){ color="#7f9c96"; icon="💧"; }
+  if(tag.includes("噂")){ color="#a47148"; icon="💬"; }
 
-  if(highlight) bg="#d4af37"; // 金色（おすすめ）
-
-  const html = `
-    <div class="${highlight ? 'recommend' : ''}" style="
-      width:46px;
-      height:46px;
-      border-radius:50%;
-      background: radial-gradient(circle at 30% 30%, #ffffff, ${bg});
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      font-size:20px;
-      box-shadow:0 6px 14px rgba(0,0,0,0.35);
-      border:2px solid rgba(255,255,255,0.6);
-    ">
-      ${icon}
-    </div>
-  `;
+  const html=`
+  <div style="
+    width:48px;
+    height:48px;
+    border-radius:50%;
+    background: radial-gradient(circle at 30% 30%, #fff, ${color});
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:20px;
+    box-shadow:0 6px 14px rgba(0,0,0,0.15);
+    border:2px solid rgba(255,255,255,0.7);
+  ">
+    ${icon}
+  </div>`;
 
   return L.divIcon({
     className:"marker-icon",
     html:html,
-    iconSize:[46,46],
-    iconAnchor:[23,23]
+    iconSize:[48,48],
+    iconAnchor:[24,24]
   });
 }
 
-// Firebase読み込み
-db.ref("locations").on("value",snap=>{
-  const data=snap.val();
-  if(!data) return;
+// ダミーデータ（テスト用）
+const data=[
+  {name:"神社跡",lat:35.68,lng:139.76,tag:"史跡",comment:"静かな場所"},
+  {name:"川沿い",lat:35.685,lng:139.765,tag:"川",comment:"景色が良い"},
+  {name:"謎スポット",lat:35.69,lng:139.77,tag:"噂",comment:"ちょっと不思議"}
+];
 
-  markers.forEach(m=>map.removeLayer(m));
-  markers=[];
+// マーカー表示
+data.forEach(d=>{
+  const m=L.marker([d.lat,d.lng],{
+    icon:createCafeIcon(d.tag)
+  }).addTo(map);
 
-  Object.values(data).forEach(d=>{
+  m.bindPopup("");
 
-    const m = L.marker([d.lat,d.lng],{
-      icon:createIcon(d.tag)
-    }).addTo(map);
+  m.on("click",()=>{
+    if(!userMarker){
+      alert("現在地取得できません");
+      return;
+    }
 
-    m.bindPopup("");
+    const distance=dist(userMarker.getLatLng(),m.getLatLng()).toFixed(2);
 
-    m.on("click",()=>{
-      if(!userMarker){
-        alert("現在地取得できません");
-        return;
-      }
+    const txt=`
+      <b>${d.name}</b><br>
+      ${d.comment}<br>
+      距離：約${distance}km
+    `;
 
-      // 前の選択解除
-      if(selectedMarker){
-        selectedMarker.setIcon(createIcon(selectedMarker.data.tag));
-      }
-
-      // 自分を強調
-      m.setIcon(createIcon(d.tag,true));
-      selectedMarker = m;
-
-      const distance = dist(userMarker.getLatLng(),m.getLatLng()).toFixed(2);
-
-      const txt = `
-        <b>${d.name}</b><br>
-        ${d.comment}<br>
-        ${d.tag}<br>
-        距離：約${distance}km
-      `;
-
-      m.getPopup().setContent(txt);
-      m.openPopup();
-    });
-
-    m.data=d;
-    markers.push(m);
+    m.getPopup().setContent(txt);
+    m.openPopup();
   });
+
+  markers.push(m);
 });
 
 // 現在地
@@ -192,9 +164,8 @@ navigator.geolocation.getCurrentPosition(pos=>{
     icon:L.divIcon({
       html:`<div style="
         font-size:26px;
-        filter: drop-shadow(0 0 6px rgba(255,255,255,0.8));
-      ">📍</div>`,
-      iconSize:[40,40]
+        filter: drop-shadow(0 0 6px rgba(0,0,0,0.2));
+      ">📍</div>`
     })
   }).addTo(map);
 
