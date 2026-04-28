@@ -122,11 +122,20 @@ button:hover { background:#c4ae8a; }
 <div id="map"></div>
 
 <div class="bottom-bar">
-  <button id="lang-ja" onclick="setLanguage('ja')">JP</button>
-  <button id="lang-en" onclick="setLanguage('en')">EN</button>
-  <button id="t-foot" onclick="setTransport('foot')">徒歩</button>
-  <button id="t-bike" onclick="setTransport('bike')">自転車</button>
-  <button id="t-car" onclick="setTransport('car')">車</button>
+
+  <div class="control-group">
+    <span class="label">言語</span>
+    <button id="lang-ja" onclick="setLanguage('ja')">JP</button>
+    <button id="lang-en" onclick="setLanguage('en')">EN</button>
+  </div>
+
+  <div class="control-group">
+    <span class="label">移動</span>
+    <button id="t-foot" onclick="setTransport('foot')">徒歩</button>
+    <button id="t-bike" onclick="setTransport('bike')">自転車</button>
+    <button id="t-car" onclick="setTransport('car')">車</button>
+  </div>
+
 </div>
 
 <script>
@@ -251,11 +260,25 @@ function findNearest(){
       map.removeLayer(window.recommendMarker);
 
     window.recommendMarker = L.marker(nearest.getLatLng(),{
-      icon:L.divIcon({
-        className:"recommend-wrap",
-        html:`<div class="recommend-box">⭐ おすすめスポット</div>`
-      })
-    }).addTo(map);
+  icon:L.divIcon({
+    className:"recommend-wrap",
+    html:`<div class="recommend-box">⭐</div>`
+  })
+}).addTo(map);
+
+window.recommendMarker.on("click", () => {
+  if(!userMarker) return;
+
+  const d = nearest.data;
+
+  const txt = `
+    <b>${d.name}</b><br>
+    ${d.comment}<br>
+    ${d.tag}
+  `;
+
+  window.recommendMarker.bindPopup(txt).openPopup();
+});
   }
 }
 
@@ -273,6 +296,18 @@ navigator.geolocation.getCurrentPosition(pos=>{
 // UI
 function setLanguage(l){ lang=l; }
 function setTransport(t){ transport=t; }
+
+  function go(lat,lng){
+  if(!userMarker){
+    alert("現在地が取得できません");
+    return;
+  }
+
+  drawRoute(
+    userMarker.getLatLng(),
+    L.latLng(lat,lng)
+  );
+}
 
 </script>
 
