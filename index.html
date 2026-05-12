@@ -17,21 +17,12 @@
 <style>
 html,body { height:100%; margin:0; font-family:'Noto Sans JP', sans-serif; background:#f5f2ed; }
 
-  .recommend-card{
-  animation:slideUp 0.4s ease;
-}
+  /* =========================
+   おすすめカード
+========================= */
 
-@keyframes slideUp{
-  from{
-    opacity:0;
-    transform:translateX(-50%) translateY(40px);
-  }
-  to{
-    opacity:1;
-    transform:translateX(-50%) translateY(0);
-  }
-}
-  .recommend-card{
+.recommend-card{
+
   position:absolute;
 
   left:50%;
@@ -55,13 +46,17 @@ html,body { height:100%; margin:0; font-family:'Noto Sans JP', sans-serif; backg
 
   box-shadow:0 8px 24px rgba(0,0,0,0.18);
 
-  transition:0.3s;
+  transition:
+    opacity 0.3s,
+    transform 0.3s;
 }
 
 .hidden{
   opacity:0;
   pointer-events:none;
-  transform:translateX(-50%) translateY(20px);
+  transform:
+    translateX(-50%)
+    translateY(20px);
 }
 
 .rec-title{
@@ -90,11 +85,85 @@ html,body { height:100%; margin:0; font-family:'Noto Sans JP', sans-serif; backg
   margin-bottom:12px;
 }
 
-#rec-route-btn{
-  width:100%;
-  padding:10px;
-  border-radius:14px;
-  font-size:14px;
+/* =========================
+   閉じるボタン
+========================= */
+
+#close-card-btn{
+
+  position:absolute;
+
+  top:10px;
+  right:10px;
+
+  width:28px;
+  height:28px;
+
+  border-radius:50%;
+
+  border:none;
+
+  background:rgba(111,78,55,0.12);
+
+  color:#6f4e37;
+
+  font-size:18px;
+
+  display:flex;
+  align-items:center;
+  justify-content:center;
+
+  cursor:pointer;
+
+  transition:0.2s;
+}
+
+#close-card-btn:hover{
+  background:rgba(111,78,55,0.22);
+  transform:scale(1.08);
+}
+
+/* =========================
+   復帰ボタン
+========================= */
+
+.restore-btn{
+
+  position:absolute;
+
+  right:18px;
+  bottom:90px;
+
+  width:52px;
+  height:52px;
+
+  border-radius:50%;
+
+  border:none;
+
+  background:rgba(255,250,243,0.96);
+
+  backdrop-filter:blur(10px);
+
+  box-shadow:0 6px 18px rgba(0,0,0,0.18);
+
+  font-size:22px;
+
+  z-index:1200;
+
+  cursor:pointer;
+
+  transition:
+    transform 0.2s,
+    opacity 0.3s;
+}
+
+.restore-btn:hover{
+  transform:scale(1.08);
+}
+
+.restore-btn:active{
+  transform:scale(0.92);
 }
 
 .header {
@@ -218,7 +287,11 @@ button:hover { background:#c4ae8a; }
 <div class="header">史跡マップ</div>
 <div id="map"></div>
 
-  <div id="recommend-card" class="recommend-card hidden">
+  <!-- おすすめカード -->
+<div id="recommend-card" class="recommend-card hidden">
+
+  <button id="close-card-btn">×</button>
+
   <div class="rec-title">⭐ おすすめ史跡</div>
 
   <div id="rec-name" class="rec-name"></div>
@@ -228,7 +301,13 @@ button:hover { background:#c4ae8a; }
   <div id="rec-time" class="rec-time"></div>
 
   <button id="rec-route-btn">ルート表示</button>
+
 </div>
+
+<!-- 復帰ボタン -->
+<button id="restore-card-btn" class="restore-btn hidden">
+  ⭐
+</button>
 
 <div class="bottom-bar">
 
@@ -251,10 +330,21 @@ button:hover { background:#c4ae8a; }
 
   function updateRecommendCard(marker){
 
-  const card = document.getElementById("recommend-card");
+  const card =
+    document.getElementById("recommend-card");
+
+  const restoreBtn =
+    document.getElementById("restore-card-btn");
 
   if(!marker || !userMarker){
     card.classList.add("hidden");
+    restoreBtn.classList.add("hidden");
+    return;
+  }
+
+  if(cardClosed){
+    card.classList.add("hidden");
+    restoreBtn.classList.remove("hidden");
     return;
   }
 
@@ -277,6 +367,7 @@ button:hover { background:#c4ae8a; }
   };
 
   card.classList.remove("hidden");
+  restoreBtn.classList.add("hidden");
 }
 
 // Firebase
@@ -297,6 +388,8 @@ let userMarker=null;
 let nearest=null;
 let lang="ja";
 let transport="foot";
+  let cardClosed = false;
+let lastNearestName = "";
 
 const speed={foot:4.8,bike:17,car:50};
 
@@ -395,7 +488,16 @@ function findNearest(){
   });
 
   if(nearest){
-    updateRecommendCard(nearest);
+    /* 新しいおすすめになったら再表示 */
+
+if(nearest.data.name !== lastNearestName){
+
+  cardClosed = false;
+
+  lastNearestName = nearest.data.name;
+}
+
+updateRecommendCard(nearest);
     if(window.recommendMarker)
       map.removeLayer(window.recommendMarker);
 
@@ -496,6 +598,39 @@ function drawRoute(from,to){
   }).addTo(map);
 }
   updateUI();
+
+  /* 閉じる */
+
+document
+  .getElementById("close-card-btn")
+  .onclick = () => {
+
+    cardClosed = true;
+
+    document
+      .getElementById("recommend-card")
+      .classList.add("hidden");
+
+    document
+      .getElementById("restore-card-btn")
+      .classList.remove("hidden");
+};
+
+  /* 復帰 */
+
+document
+  .getElementById("restore-card-btn")
+  .onclick = () => {
+
+    cardClosed = false;
+
+    document
+      .getElementById("restore-card-btn")
+      .classList.add("hidden");
+
+    updateRecommendCard(nearest);
+};
+  
 </script>
 
 </body>
