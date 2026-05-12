@@ -17,6 +17,86 @@
 <style>
 html,body { height:100%; margin:0; font-family:'Noto Sans JP', sans-serif; background:#f5f2ed; }
 
+  .recommend-card{
+  animation:slideUp 0.4s ease;
+}
+
+@keyframes slideUp{
+  from{
+    opacity:0;
+    transform:translateX(-50%) translateY(40px);
+  }
+  to{
+    opacity:1;
+    transform:translateX(-50%) translateY(0);
+  }
+}
+  .recommend-card{
+  position:absolute;
+
+  left:50%;
+  bottom:90px;
+
+  transform:translateX(-50%);
+
+  width:280px;
+
+  background:rgba(255,250,243,0.96);
+
+  backdrop-filter:blur(10px);
+
+  border:1px solid rgba(214,195,163,0.7);
+
+  border-radius:18px;
+
+  padding:14px;
+
+  z-index:1200;
+
+  box-shadow:0 8px 24px rgba(0,0,0,0.18);
+
+  transition:0.3s;
+}
+
+.hidden{
+  opacity:0;
+  pointer-events:none;
+  transform:translateX(-50%) translateY(20px);
+}
+
+.rec-title{
+  font-size:13px;
+  color:#8c6f56;
+  margin-bottom:6px;
+}
+
+.rec-name{
+  font-size:20px;
+  font-weight:600;
+  color:#3e2f1c;
+  margin-bottom:8px;
+}
+
+.rec-comment{
+  font-size:13px;
+  line-height:1.5;
+  color:#5a4a3f;
+  margin-bottom:10px;
+}
+
+.rec-time{
+  font-size:14px;
+  color:#6f4e37;
+  margin-bottom:12px;
+}
+
+#rec-route-btn{
+  width:100%;
+  padding:10px;
+  border-radius:14px;
+  font-size:14px;
+}
+
 .header {
   position:absolute; top:0; left:0; right:0; height:60px;
   background: rgba(214,195,163,0.95);
@@ -138,6 +218,18 @@ button:hover { background:#c4ae8a; }
 <div class="header">史跡マップ</div>
 <div id="map"></div>
 
+  <div id="recommend-card" class="recommend-card hidden">
+  <div class="rec-title">⭐ おすすめ史跡</div>
+
+  <div id="rec-name" class="rec-name"></div>
+
+  <div id="rec-comment" class="rec-comment"></div>
+
+  <div id="rec-time" class="rec-time"></div>
+
+  <button id="rec-route-btn">ルート表示</button>
+</div>
+
 <div class="bottom-bar">
 
   <div class="control-group">
@@ -156,6 +248,36 @@ button:hover { background:#c4ae8a; }
 </div>
 
 <script>
+
+  function updateRecommendCard(marker){
+
+  const card = document.getElementById("recommend-card");
+
+  if(!marker || !userMarker){
+    card.classList.add("hidden");
+    return;
+  }
+
+  const d = marker.data;
+
+  document.getElementById("rec-name").textContent =
+    d.name;
+
+  document.getElementById("rec-comment").textContent =
+    d.comment;
+
+  document.getElementById("rec-time").textContent =
+    `所要時間: ${time(
+      userMarker.getLatLng(),
+      marker.getLatLng()
+    )}`;
+
+  document.getElementById("rec-route-btn").onclick=()=>{
+    go(d.lat,d.lng);
+  };
+
+  card.classList.remove("hidden");
+}
 
 // Firebase
 const firebaseConfig = {
@@ -273,6 +395,7 @@ function findNearest(){
   });
 
   if(nearest){
+    updateRecommendCard(nearest);
     if(window.recommendMarker)
       map.removeLayer(window.recommendMarker);
 
