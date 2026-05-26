@@ -575,7 +575,7 @@ function updateUI(){
 function drawRoute(from,to){
 
   if(routingControl){
-    map.removeLayer(routingControl);
+    routingControl.remove();
     routingControl = null;
   }
 
