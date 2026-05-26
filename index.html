@@ -569,14 +569,41 @@ window.recommendMarker.on("click", () => {
 }
 
 // 現在地
-navigator.geolocation.getCurrentPosition(pos=>{
-  const lat=pos.coords.latitude;
-  const lng=pos.coords.longitude;
+navigator.geolocation.watchPosition(pos=>{
 
-  userMarker=L.marker([lat,lng]).addTo(map).bindPopup("現在地");
-  map.setView([lat,lng],15);
+  const lat = pos.coords.latitude;
+  const lng = pos.coords.longitude;
 
+  // 初回だけマーカー作成
+  if(!userMarker){
+
+    userMarker = L.marker([lat,lng])
+      .addTo(map)
+      .bindPopup("現在地");
+
+    map.setView([lat,lng],15);
+
+  }else{
+
+    // 現在地更新
+    userMarker.setLatLng([lat,lng]);
+
+    // 地図追従
+    map.panTo([lat,lng]);
+  }
+
+  // 最寄り更新
   findNearest();
+
+},
+error=>{
+  console.error(error);
+  alert("現在地を取得できません");
+},
+{
+  enableHighAccuracy:true,
+  maximumAge:0,
+  timeout:10000
 });
 
 // UI
