@@ -630,44 +630,37 @@ window.recommendMarker.on("click", () => {
 }
 
 // 現在地
-navigator.geolocation.watchPosition(pos=>{
+navigator.geolocation.watchPosition(
+  pos => {
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
 
-  const lat = pos.coords.latitude;
-  const lng = pos.coords.longitude;
+    if (!userMarker) {
+      userMarker = L.marker([lat, lng])
+        .addTo(map)
+        .bindPopup("現在地");
 
-  // 初回だけマーカー作成
-  if(!userMarker){
+      map.setView([lat, lng], 15);
+    } else {
+      userMarker.setLatLng([lat, lng]);
 
-    userMarker = L.marker([lat,lng])
-      .addTo(map)
-      .bindPopup("現在地");
+      if (followUser) {
+        map.panTo([lat, lng]);
+      }
+    }
 
-    map.setView([lat,lng],15);
-
-  }else{
-
-    // 現在地更新
-    userMarker.setLatLng([lat,lng]);
-
-    // 地図追従
-   if(followUser){
-  map.panTo([lat,lng]);
-}
-    
-  // 最寄り更新
-  findNearest();
-
-},
-error=>{
-  console.error(error);
-  alert("現在地を取得できません");
-},
-{
-  enableHighAccuracy:true,
-  maximumAge:0,
-  timeout:10000
-});
-
+    findNearest();
+  },
+  error => {
+    console.error(error);
+    alert("現在地を取得できません");
+  },
+  {
+    enableHighAccuracy: true,
+    maximumAge: 0,
+    timeout: 10000
+  }
+);
 // UI
 function setLanguage(l){
   lang = l;
