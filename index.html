@@ -279,6 +279,45 @@ button:hover { background:#c4ae8a; }
   font-size:12px;
   margin-right:6px;
 }
+
+#clear-route-btn{
+
+  position:absolute;
+
+  right:18px;
+  bottom:160px;
+
+  z-index:1200;
+
+  padding:10px 14px;
+
+  border:none;
+  border-radius:14px;
+
+  background:rgba(255,250,243,0.96);
+
+  backdrop-filter:blur(10px);
+
+  color:#6f4e37;
+
+  font-size:13px;
+
+  box-shadow:0 6px 18px rgba(0,0,0,0.18);
+
+  cursor:pointer;
+
+  transition:
+    transform 0.2s,
+    opacity 0.3s;
+}
+
+#clear-route-btn:hover{
+  transform:scale(1.05);
+}
+
+#clear-route-btn:active{
+  transform:scale(0.95);
+}
 </style>
 </head>
 
@@ -307,6 +346,11 @@ button:hover { background:#c4ae8a; }
 <!-- 復帰ボタン -->
 <button id="restore-card-btn" class="restore-btn hidden">
   ⭐
+</button>
+
+<!-- ルート解除ボタン -->
+<button id="clear-route-btn" class="hidden">
+  ✕ ルート解除
 </button>
 
 <div class="bottom-bar">
@@ -571,6 +615,18 @@ function updateUI(){
 }
 
   let routingControl=null;
+  
+  function clearRoute(){
+
+  if(routingControl){
+    routingControl.remove();
+    routingControl = null;
+  }
+
+  document
+    .getElementById("clear-route-btn")
+    .classList.add("hidden");
+}
 
 function drawRoute(from,to){
 
@@ -595,7 +651,12 @@ function drawRoute(from,to){
     },
 
     createMarker: function() { return null; } // ←これ超重要（ピン重複防止）
-  }).addTo(map);
+   }).addTo(map);
+
+  // 解除ボタン表示
+  document
+    .getElementById("clear-route-btn")
+    .classList.remove("hidden");
 }
   updateUI();
 
@@ -614,6 +675,10 @@ document
     document
       .getElementById("restore-card-btn")
       .classList.remove("hidden");
+
+  document
+  .getElementById("clear-route-btn")
+  .onclick = clearRoute;
 };
 
   /* 復帰 */
