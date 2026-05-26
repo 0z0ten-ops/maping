@@ -319,60 +319,7 @@ button:hover { background:#c4ae8a; }
   transform:scale(0.95);
 }
 
-  .follow-btn{
 
-  position:absolute;
-
-  right:18px;
-  bottom:230px;
-
-  width:56px;
-  height:56px;
-
-  border-radius:50%;
-
-  border:none;
-
-  background:rgba(255,250,243,0.96);
-
-  backdrop-filter:blur(10px);
-
-  color:#6f4e37;
-
-  font-size:24px;
-
-  z-index:1200;
-
-  box-shadow:0 6px 18px rgba(0,0,0,0.18);
-
-  cursor:pointer;
-
-  transition:
-    transform 0.2s,
-    background 0.3s,
-    color 0.3s;
-}
-
-.follow-btn:hover{
-  transform:scale(1.08);
-}
-
-.follow-btn:active{
-  transform:scale(0.92);
-}
-
-/* ON状態 */
-
-.follow-btn.active{
-
-  background:#6f4e37;
-
-  color:white;
-
-  box-shadow:
-    0 0 0 4px rgba(111,78,55,0.15),
-    0 8px 20px rgba(0,0,0,0.25);
-}
 </style>
 </head>
 
@@ -406,11 +353,6 @@ button:hover { background:#c4ae8a; }
 <!-- ルート解除ボタン -->
 <button id="clear-route-btn" class="hidden">
   ✕ ルート解除
-</button>
-
-<!-- 追従ボタン -->
-<button id="follow-btn" class="follow-btn active">
-  📍
 </button>
 
 <div class="bottom-bar">
@@ -492,7 +434,6 @@ let userMarker=null;
 let nearest=null;
 let lang="ja";
 let transport="foot";
-let followUser = true;
 let cardClosed = false;
 let lastNearestName = "";
 
@@ -644,9 +585,7 @@ navigator.geolocation.watchPosition(
     } else {
       userMarker.setLatLng([lat, lng]);
 
-      if (followUser) {
-        map.panTo([lat, lng]);
-      }
+      map.panTo([lat,lng]);
     }
 
     findNearest();
@@ -762,28 +701,7 @@ document
   .getElementById("clear-route-btn")
   .onclick = clearRoute;
 
-    document
-  .getElementById("follow-btn")
-  .onclick = () => {
-
-    followUser = !followUser;
-
-    const btn =
-      document.getElementById("follow-btn");
-
-    if(followUser){
-
-      btn.classList.add("active");
-
-      if(userMarker){
-        map.panTo(userMarker.getLatLng());
-      }
-
-    }else{
-
-      btn.classList.remove("active");
-    }
-};
+  
 
   /* 復帰 */
 
