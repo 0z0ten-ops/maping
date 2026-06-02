@@ -726,15 +726,17 @@ button.active {
 
   
 
-  document.getElementById("rec-time").textContent = 
+  const transportName = {
+  foot:"徒歩",
+  bike:"自転車",
+  car:"車"
+};
 
-    `所要時間: ${time( 
-
-      userMarker.getLatLng(), 
-
-      marker.getLatLng() 
-
-    )}`; 
+document.getElementById("rec-time").textContent =
+  `${transportName[transport]} 約${time(
+    userMarker.getLatLng(),
+    marker.getLatLng()
+  )}`;
 
   
 
@@ -790,6 +792,8 @@ let lang="ja";
 
 let transport="foot"; 
 
+  let selectedMarker = null;
+
   let cardClosed = false; 
 
 let lastNearestName = ""; 
@@ -839,6 +843,28 @@ function time(a,b){
   return H>0 ? `${H}時間${M}分` : `${M}分`; 
 
 } 
+
+  function refreshPopup(){
+
+  if(!selectedMarker || !userMarker) return;
+
+  const d = selectedMarker.data;
+
+  const txt = `
+    <b>${d.name}</b><br>
+    ${d.comment}<br>
+    ${d.tag}<br>
+    所要時間:${time(
+      userMarker.getLatLng(),
+      selectedMarker.getLatLng()
+    )}<br><br>
+    <button onclick="go(${d.lat},${d.lng})">
+      ルート表示
+    </button>
+  `;
+
+  selectedMarker.setPopupContent(txt);
+}
 
   
 
@@ -919,6 +945,8 @@ db.ref("locations").on("value",snap=>{
   
 
     m.on("click",()=>{ 
+
+      selectedMarker = m;
 
       if(!userMarker) return alert("現在地取得できません"); 
 
@@ -1105,6 +1133,8 @@ function setTransport(t){
    if(nearest){
     updateRecommendCard(nearest);
   }
+  
+refreshPopup();
 
 } 
 
