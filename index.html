@@ -661,6 +661,14 @@ button.active {
   </button>
 </div>
 
+  <div class="control-group">
+  <span class="label">表示</span>
+  <button onclick="setFilter('all')">全部</button>
+  <button onclick="setFilter('史跡')">史跡</button>
+  <button onclick="setFilter('展示施設')">展示</button>
+  <button onclick="setFilter('川')">川</button>
+</div>
+
   
 </div> 
 
@@ -780,6 +788,8 @@ const map = L.map('map').setView([35.681,139.767],13);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map); 
 
+  reloadMarkers();
+
   
 
 let markers=[]; 
@@ -797,6 +807,8 @@ let transport="foot";
   let cardClosed = false; 
 
 let lastNearestName = ""; 
+
+  let filterTag = "all";
 
   
 
@@ -866,6 +878,12 @@ function time(a,b){
   selectedMarker.setPopupContent(txt);
 }
 
+
+  function setFilter(tag){
+  filterTag = tag;
+  reloadMarkers();
+}
+
   
 
 // ピン 
@@ -916,7 +934,9 @@ function createIcon(tag){
 
 // Firebase 
 
-db.ref("locations").on("value",snap=>{ 
+
+function reloadMarkers(){
+db.ref("locations").once("value",snap=>{ 
 
   const data=snap.val(); 
 
@@ -937,6 +957,7 @@ db.ref("locations").on("value",snap=>{
       icon:createIcon(d.tag) 
 
     }).addTo(map); 
+  }
 
   
 
