@@ -600,6 +600,7 @@ button.active {
 
   <div id="rec-time" class="rec-time"></div> 
 
+
   
 
   <button id="rec-route-btn">ルート表示</button> 
@@ -648,8 +649,14 @@ button.active {
 
   </div> 
 
-  
 
+  <div class="control-group">
+  <button id="clear-route-btn" onclick="clearRoute()">
+    ルート解除
+  </button>
+</div>
+
+  
 </div> 
 
   
@@ -1148,15 +1155,25 @@ function updateUI(){
 
 function drawRoute(from,to){ 
 
+  function clearRoute(){
+
+  if(routingControl){
+
+    map.removeControl(routingControl);
+
+    routingControl = null;
+  }
+
+}
+
   
 
-  if(routingControl){ 
+  if(routingControl){
 
-    map.removeLayer(routingControl); 
+  map.removeControl(routingControl);
 
-    routingControl = null; 
-
-  } 
+  routingControl = null;
+}
 
   
 
