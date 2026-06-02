@@ -560,6 +560,11 @@ button.active {
 
 } 
 
+
+  #clear-route-btn{
+  display:none;
+}
+
 </style> 
 
 </head> 
@@ -1097,6 +1102,10 @@ function setTransport(t){
 
   updateUI(); 
 
+   if(nearest){
+    updateRecommendCard(nearest);
+  }
+
 } 
 
   
@@ -1161,6 +1170,8 @@ function updateUI(){
     routingControl = null;
   }
 
+document.getElementById("clear-route-btn").style.display = "none";
+     
 }
 
 
@@ -1209,6 +1220,8 @@ function drawRoute(from,to){
     createMarker: function() { return null; } // ←これ超重要（ピン重複防止） 
 
   }).addTo(map); 
+  
+document.getElementById("clear-route-btn").style.display = "block";
 
 } 
 
