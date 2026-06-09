@@ -1656,8 +1656,7 @@ let lang="ja";
 
 let transport="foot";  
 
-  let currentFilter = "all";
-
+  let currentFilters = [];
   
 
   let selectedMarker = null; 
@@ -2078,12 +2077,18 @@ nearest = null;
 
   markers.forEach(m=>{  
 
-    if(
-    currentFilter !== "all" &&
-    !m.data.tag.includes(currentFilter)
-  ){
+   if(currentFilters.length > 0){
+
+  const visible =
+    currentFilters.some(filter =>
+      m.data.tag.includes(filter)
+    );
+
+  if(!visible){
     return;
   }
+
+}
 
     const d=dist(userMarker.getLatLng(),m.getLatLng());  
 
@@ -2722,24 +2727,80 @@ document
 };  
 
 
-  function setFilter(filter, btn){
+ function setFilter(filter, btn){
 
-  currentFilter = filter;
+  if(filter === "all"){
 
-  document
-    .querySelectorAll(".filter-chip")
-    .forEach(chip=>{
-      chip.classList.remove("active");
-    });
+    currentFilters = [];
 
-  btn.classList.add("active");
+    document
+      .querySelectorAll(".filter-chip")
+      .forEach(chip=>{
+        chip.classList.remove("active");
+      });
+
+    document
+      .querySelector(".filter-chip")
+      .classList.add("active");
+
+  }else{
+
+    document
+      .querySelector(".filter-chip")
+      .classList.remove("active");
+
+    const index =
+      currentFilters.indexOf(filter);
+
+    if(index > -1){
+
+      currentFilters.splice(index,1);
+
+      btn.classList.remove("active");
+
+    }else{
+
+      currentFilters.push(filter);
+
+      btn.classList.add("active");
+
+    }
+
+    if(currentFilters.length === 0){
+
+      document
+        .querySelector(".filter-chip")
+        .classList.add("active");
+
+    }
+
+  }
+
+  updateMarkers();
+
+  findNearest();
+
+}
+  
+
+  function updateMarkers(){
 
   markers.forEach(m=>{
 
-    if(
-      filter==="all" ||
-      m.data.tag.includes(filter)
-    ){
+    if(currentFilters.length === 0){
+
+      map.addLayer(m);
+
+      return;
+
+    }
+
+    const visible =
+      currentFilters.some(filter =>
+        m.data.tag.includes(filter)
+      );
+
+    if(visible){
 
       map.addLayer(m);
 
@@ -2752,7 +2813,6 @@ document
   });
 
 }
-
     
 
   
