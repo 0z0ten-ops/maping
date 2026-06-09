@@ -1130,7 +1130,52 @@ button.active {
 
 } 
 
-  
+  .filter-bar{
+
+  position:absolute;
+
+  left:0;
+  right:0;
+
+  bottom:72px;
+
+  display:flex;
+
+  gap:8px;
+
+  overflow-x:auto;
+
+  padding:10px;
+
+  z-index:1100;
+
+}
+
+.filter-chip{
+
+  flex-shrink:0;
+
+  border:none;
+
+  border-radius:999px;
+
+  padding:8px 14px;
+
+  background:#fff;
+
+  color:#3e2f1c;
+
+  box-shadow:0 2px 8px rgba(0,0,0,.15);
+
+}
+
+.filter-chip.active{
+
+  background:#6f4e37;
+
+  color:white;
+
+}
 
 </style>  
 
@@ -1251,7 +1296,34 @@ button.active {
   
 
    
+<div id="filter-bar" class="filter-bar">
 
+  <button class="filter-chip active"
+          onclick="setFilter('all', this)">
+    全部
+  </button>
+
+  <button class="filter-chip"
+          onclick="setFilter('史跡', this)">
+    🗿史跡
+  </button>
+
+  <button class="filter-chip"
+          onclick="setFilter('展示施設', this)">
+    🏛️展示施設
+  </button>
+
+  <button class="filter-chip"
+          onclick="setFilter('噂', this)">
+    💬噂
+  </button>
+
+  <button class="filter-chip"
+          onclick="setFilter('川', this)">
+    🌊川
+  </button>
+
+</div>
   
 
 <div class="bottom-bar">  
@@ -1583,6 +1655,8 @@ let lang="ja";
   
 
 let transport="foot";  
+
+  let currentFilter = "all";
 
   
 
@@ -1999,12 +2073,17 @@ function findNearest(){
   
 
    
-
+nearest = null;
   
 
   markers.forEach(m=>{  
 
-  
+    if(
+    currentFilter !== "all" &&
+    !m.data.tag.includes(currentFilter)
+  ){
+    return;
+  }
 
     const d=dist(userMarker.getLatLng(),m.getLatLng());  
 
@@ -2642,7 +2721,37 @@ document
 
 };  
 
-  
+
+  function setFilter(filter, btn){
+
+  currentFilter = filter;
+
+  document
+    .querySelectorAll(".filter-chip")
+    .forEach(chip=>{
+      chip.classList.remove("active");
+    });
+
+  btn.classList.add("active");
+
+  markers.forEach(m=>{
+
+    if(
+      filter==="all" ||
+      m.data.tag.includes(filter)
+    ){
+
+      map.addLayer(m);
+
+    }else{
+
+      map.removeLayer(m);
+
+    }
+
+  });
+
+}
 
     
 
