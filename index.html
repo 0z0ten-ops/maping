@@ -1201,17 +1201,7 @@ function drawRoute(from,to){
 
     waypoints: [from, to],  
 
- router: L.Routing.osrmv1({
-      serviceUrl:
-        "https://router.project-osrm.org/route/v1",
-
-      profile:
-        transport === "foot"
-          ? "foot"
-          : transport === "bike"
-          ? "bike"
-          : "car"
-    }),
+router: L.Routing.openrouteservice('eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjUzMGIyYmEyYmIyYjQxODc4YzMzM2I5ZmYyM2VmZDBlIiwiaCI6Im11cm11cjY0In0='),
     
     show:false,  
 
@@ -1236,8 +1226,7 @@ function drawRoute(from,to){
 
     },  
 
-
-    createMarker: function() { return null; } // ←これ超重要（ピン重複防止）  
+   createMarker: () => null  
 
   }).addTo(map);  
 
