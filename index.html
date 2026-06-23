@@ -777,7 +777,9 @@ let transport="foot";
 
   let cardClosed = false;  
 
-let lastNearestName = "";  
+let lastNearestName = ""; 
+
+  let currentDestination = null;
 
 
 const speed={foot:4.8,bike:17,car:50};  
@@ -1111,6 +1113,15 @@ function setTransport(t){
   
 refreshPopup(); 
 
+  if(currentDestination && userMarker){
+
+    drawRoute(
+      userMarker.getLatLng(),
+      currentDestination
+    );
+
+  }
+
 }  
 
   
@@ -1144,12 +1155,13 @@ function updateUI(){
 
   }  
 
+  currentDestination = L.latLng(lat,lng);
     
   drawRoute(  
     
     userMarker.getLatLng(),  
 
-    L.latLng(lat,lng)  
+    currentDestination
 
   );  
 
@@ -1189,6 +1201,18 @@ function drawRoute(from,to){
 
     waypoints: [from, to],  
 
+ router: L.Routing.osrmv1({
+      serviceUrl:
+        "https://router.project-osrm.org/route/v1",
+
+      profile:
+        transport === "foot"
+          ? "foot"
+          : transport === "bike"
+          ? "bike"
+          : "car"
+    }),
+    
     show:false,  
 
     addWaypoints:false,  
