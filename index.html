@@ -777,9 +777,7 @@ let transport="foot";
 
   let cardClosed = false;  
 
-let lastNearestName = ""; 
-
-  let currentDestination = null;
+let lastNearestName = "";  
 
 
 const speed={foot:4.8,bike:17,car:50};  
@@ -1113,15 +1111,6 @@ function setTransport(t){
   
 refreshPopup(); 
 
-  if(currentDestination && userMarker){
-
-    drawRoute(
-      userMarker.getLatLng(),
-      currentDestination
-    );
-
-  }
-
 }  
 
   
@@ -1155,13 +1144,12 @@ function updateUI(){
 
   }  
 
-  currentDestination = L.latLng(lat,lng);
     
   drawRoute(  
     
     userMarker.getLatLng(),  
 
-    currentDestination
+    L.latLng(lat,lng)  
 
   );  
 
@@ -1201,8 +1189,6 @@ function drawRoute(from,to){
 
     waypoints: [from, to],  
 
-router: L.Routing.openrouteservice('eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjUzMGIyYmEyYmIyYjQxODc4YzMzM2I5ZmYyM2VmZDBlIiwiaCI6Im11cm11cjY0In0='),
-    
     show:false,  
 
     addWaypoints:false,  
@@ -1226,7 +1212,8 @@ router: L.Routing.openrouteservice('eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgi
 
     },  
 
-   createMarker: () => null  
+
+    createMarker: function() { return null; } // ←これ超重要（ピン重複防止）  
 
   }).addTo(map);  
 
