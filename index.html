@@ -16,15 +16,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600&display=swap" rel="stylesheet">  
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>  
-
-<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css"/> 
-
   
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-
-<script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
-
-<script src="https://unpkg.com/leaflet-routing-machine-openroute/dist/leaflet-routing-openroute.min.js"></script>
   
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>  
 
@@ -1152,84 +1145,129 @@ function updateUI(){
     );
 }
     
-  let routingControl = null;
+  let routeLayer = null;
+  
+async function drawRoute(from,to){
 
-function drawRoute(from, to){
-
-  if(routingControl){
-    map.removeControl(routingControl);
+  if(routeLayer){
+    map.removeLayer(routeLayer);
+    routeLayer=null;
   }
+
 
   let profile;
 
   switch(transport){
+
     case "foot":
-      profile = "foot-walking";
+      profile="foot-walking";
       break;
 
     case "bike":
-      profile = "cycling-regular";
+      profile="cycling-regular";
       break;
 
-    default:
-      profile = "driving-car";
+    case "car":
+      profile="driving-car";
+      break;
+
   }
 
-  routingControl = L.Routing.control({
 
-    waypoints:[
-      from,
-      to
-    ],
+  const apiKey="eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjUzMGIyYmEyYmIyYjQxODc4YzMzM2I5ZmYyM2VmZDBlIiwiaCI6Im11cm11cjY0In0=";
 
-    router: L.routing.openrouteservice(
-      "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjUzMGIyYmEyYmIyYjQxODc4YzMzM2I5ZmYyM2VmZDBlIiwiaCI6Im11cm11cjY0In0=",
-      {
-        profile: profile
-      }
-    ),
 
-    show:false,
-    addWaypoints:false,
-    draggableWaypoints:false,
-    fitSelectedRoutes:true,
-    routeWhileDragging:false,
+  const url=
+    `https://api.openrouteservice.org/v2/directions/${profile}/geojson`;
 
-    lineOptions:{
-      styles:[
-        {
-          color:"#d6c3a3",
-          weight:6,
-          opacity:0.8
-        },
-        {
-          color:"#6f4e37",
-          weight:3,
-          opacity:0.9
-        }
-      ]
+
+  const response = await fetch(url,{
+
+    method:"POST",
+
+    headers:{
+      "Authorization":apiKey,
+      "Content-Type":"application/json"
     },
 
-    createMarker:()=>null
+    body:JSON.stringify({
+
+      coordinates:[
+
+        [
+          from.lng,
+          from.lat
+        ],
+
+        [
+          to.lng,
+          to.lat
+        ]
+
+      ]
+
+    })
+
+  });
+
+
+  const data=await response.json();
+
+
+  if(!data.features){
+
+    console.log(data);
+    alert("ルート取得失敗");
+
+    return;
+
+  }
+
+
+
+  routeLayer=L.geoJSON(data,{
+
+    style:{
+
+      color:"#6f4e37",
+      weight:5,
+      opacity:0.9
+
+    }
 
   }).addTo(map);
 
-  document.getElementById("clear-route-btn").style.display="block";
+
+
+  map.fitBounds(
+    routeLayer.getBounds(),
+    {
+      padding:[40,40]
+    }
+  );
+
+
+  document
+    .getElementById("clear-route-btn")
+    .style.display="block";
+
 }
+   function clearRoute(){
 
-   function clearRoute(){ 
+  if(routeLayer){
 
-  if(routingControl){ 
+    map.removeLayer(routeLayer);
 
-    map.removeControl(routingControl); 
+    routeLayer=null;
 
-    routingControl = null; 
+  }
 
-  } 
 
-document.getElementById("clear-route-btn").style.display = "none"; 
+  document
+    .getElementById("clear-route-btn")
+    .style.display="none";
 
-} 
+}
 
   updateUI();  
 
