@@ -17,8 +17,10 @@
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>  
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css"/>  
+<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css"/> 
 
+  
+<script src="https://unpkg.com/leaflet-routing-machine-openroute/dist/leaflet-routing-openroute.min.js"></script>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>  
 
@@ -1145,13 +1147,70 @@ function updateUI(){
   }  
 
     
-  drawRoute(  
-    
-    userMarker.getLatLng(),  
+  let routingControl = null;
 
-    L.latLng(lat,lng)  
+function drawRoute(from, to){
 
-  );  
+  if(routingControl){
+    map.removeControl(routingControl);
+  }
+
+  let profile;
+
+  switch(transport){
+    case "foot":
+      profile = "foot-walking";
+      break;
+
+    case "bike":
+      profile = "cycling-regular";
+      break;
+
+    default:
+      profile = "driving-car";
+  }
+
+  routingControl = L.Routing.control({
+
+    waypoints:[
+      from,
+      to
+    ],
+
+    router: L.routing.openrouteservice(
+      "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjUzMGIyYmEyYmIyYjQxODc4YzMzM2I5ZmYyM2VmZDBlIiwiaCI6Im11cm11cjY0In0=",
+      {
+        profile: profile
+      }
+    ),
+
+    show:false,
+    addWaypoints:false,
+    draggableWaypoints:false,
+    fitSelectedRoutes:true,
+    routeWhileDragging:false,
+
+    lineOptions:{
+      styles:[
+        {
+          color:"#d6c3a3",
+          weight:6,
+          opacity:0.8
+        },
+        {
+          color:"#6f4e37",
+          weight:3,
+          opacity:0.9
+        }
+      ]
+    },
+
+    createMarker:()=>null
+
+  }).addTo(map);
+
+  document.getElementById("clear-route-btn").style.display="block";
+}
 
 }  
 
