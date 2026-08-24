@@ -1793,9 +1793,51 @@ function updateCompass(event){
 
 }
 
-  async function startCompass(){
+ // ================================
+// コンパス
+// ================================
+
+function updateCompass(event){
+
+  let heading = null;
 
   // iPhone / iPad
+  if(
+    event.webkitCompassHeading !== undefined &&
+    event.webkitCompassHeading !== null
+  ){
+
+    heading = event.webkitCompassHeading;
+
+  }
+
+  // Android
+  else if(event.alpha !== null){
+
+    heading = 360 - event.alpha;
+
+  }
+
+  if(heading === null){
+    return;
+  }
+
+  const arrow =
+    document.querySelector(".user-heading");
+
+  if(arrow){
+
+    arrow.style.transform =
+      `translateX(-50%) rotate(${-heading}deg)`;
+
+  }
+
+}
+
+
+async function startCompass(){
+
+  // iPhone / iPadでは許可が必要
   if(
     typeof DeviceOrientationEvent !== "undefined" &&
     typeof DeviceOrientationEvent.requestPermission === "function"
@@ -1827,6 +1869,7 @@ function updateCompass(event){
   }
 
 
+  // 二重登録を防ぐ
   window.removeEventListener(
     "deviceorientation",
     updateCompass,
@@ -1848,35 +1891,6 @@ function updateCompass(event){
   btn.classList.add("active");
 
   btn.textContent = "🧭コンパスON";
-
-}
-
-  // iPhone / iPad
-
-  if(
-    typeof DeviceOrientationEvent !== "undefined" &&
-    typeof DeviceOrientationEvent.requestPermission === "function"
-  ){
-
-    const permission =
-      await DeviceOrientationEvent.requestPermission();
-
-    if(permission !== "granted"){
-
-      alert("コンパスの利用が許可されませんでした");
-
-      return;
-
-    }
-
-  }
-
-
-  window.addEventListener(
-    "deviceorientation",
-    updateCompass,
-    true
-  );
 
 }
 
