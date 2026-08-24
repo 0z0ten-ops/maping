@@ -975,6 +975,172 @@ button.active {
   font-size:13px;
 
 }
+
+  /* =========================
+   検索バー
+========================= */
+
+.search-bar{
+
+  position:absolute;
+
+  top:72px;
+  left:20px;
+  right:20px;
+
+  z-index:1200;
+
+  display:flex;
+  align-items:center;
+
+  background:rgba(255,250,243,0.96);
+
+  border:1px solid rgba(214,195,163,0.7);
+
+  border-radius:999px;
+
+  box-shadow:0 4px 14px rgba(0,0,0,0.16);
+
+  backdrop-filter:blur(10px);
+
+  overflow:hidden;
+}
+
+.search-bar input{
+
+  flex:1;
+
+  border:none;
+  outline:none;
+
+  background:transparent;
+
+  padding:12px 14px;
+
+  font-size:14px;
+
+  color:#3e2f1c;
+}
+
+.search-bar button{
+
+  background:transparent;
+
+  font-size:18px;
+
+  padding:10px 14px;
+
+  color:#6f4e37;
+}
+
+
+/* =========================
+   下部メニュー
+========================= */
+
+.main-menu{
+
+  position:absolute;
+
+  left:10px;
+  right:10px;
+
+  bottom:72px;
+
+  height:58px;
+
+  z-index:1150;
+
+  display:flex;
+
+  align-items:center;
+
+  justify-content:space-around;
+
+  background:rgba(255,250,243,0.96);
+
+  border:1px solid rgba(214,195,163,0.7);
+
+  border-radius:18px;
+
+  box-shadow:0 4px 14px rgba(0,0,0,0.16);
+
+  backdrop-filter:blur(10px);
+}
+
+.main-menu button{
+
+  flex:1;
+
+  height:48px;
+
+  margin:4px;
+
+  background:transparent;
+
+  color:#6f4e37;
+
+  font-size:12px;
+
+  border-radius:14px;
+}
+
+.main-menu button.active{
+
+  background:#6f4e37;
+
+  color:white;
+
+  border:none;
+
+  transform:none;
+}
+
+
+/* =========================
+   地図の位置調整
+========================= */
+
+#map{
+
+  top:130px;
+
+  bottom:140px;
+
+}
+
+
+/* =========================
+   スマホ対応
+========================= */
+
+@media(max-width:600px){
+
+  .header{
+
+    height:56px;
+
+    font-size:18px;
+
+  }
+
+  .search-bar{
+
+    top:66px;
+
+    left:16px;
+    right:16px;
+
+  }
+
+  .main-menu{
+
+    left:8px;
+    right:8px;
+
+  }
+
+}
   
 </style>  
 
@@ -987,6 +1153,50 @@ button.active {
 <div class="header">史跡マップ</div>  
 
 <div id="map"></div>  
+
+  <!-- 検索バー -->
+
+<div class="search-bar">
+
+  <input
+    id="search-input"
+    type="text"
+    placeholder="🔍 史跡を検索"
+  >
+
+  <button onclick="searchLocations()">
+    🔍
+  </button>
+
+</div>
+
+  <!-- メインメニュー -->
+
+<div class="main-menu">
+
+  <button
+    id="menu-search"
+    class="active"
+    onclick="showSearch()">
+    🔍<br>
+    検索
+  </button>
+
+  <button
+    id="menu-list"
+    onclick="showList()">
+    ☷<br>
+    一覧
+  </button>
+
+  <button
+    id="menu-favorite"
+    onclick="showFavorites()">
+    ⭐<br>
+    お気に入り
+  </button>
+
+</div>
 
   <!-- ================================
      検索・一覧・お気に入り
@@ -2878,6 +3088,62 @@ function searchLocations(){
   );
 
 }
+
+  // ================================
+// 検索
+// ================================
+
+function searchLocations(){
+
+  const input =
+    document.getElementById("search-input");
+
+  const keyword =
+    input.value.trim().toLowerCase();
+
+  if(keyword === ""){
+
+    updateMarkers();
+
+    return;
+
+  }
+
+  markers.forEach(m=>{
+
+    const d = m.data;
+
+    const text = `
+      ${d.name}
+      ${d.comment}
+      ${d.tag}
+    `.toLowerCase();
+
+    if(text.includes(keyword)){
+
+      map.addLayer(m);
+
+    }else{
+
+      map.removeLayer(m);
+
+    }
+
+  });
+
+}
+
+  document
+  .getElementById("search-input")
+  .addEventListener("keydown",function(event){
+
+    if(event.key === "Enter"){
+
+      searchLocations();
+
+    }
+
+  });
 
   
 </script>  
