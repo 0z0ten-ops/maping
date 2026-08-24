@@ -553,6 +553,60 @@ button.active {
   background:#6f4e37;
   color:white;
 }
+
+  /* =========================
+   青い現在地マーク
+========================= */
+
+.user-location-icon {
+
+  width:26px;
+  height:26px;
+
+  background:#4285f4;
+
+  border:3px solid white;
+
+  border-radius:50%;
+
+  box-shadow:
+    0 0 0 8px rgba(66,133,244,0.18),
+    0 2px 8px rgba(0,0,0,0.3);
+
+  position:relative;
+
+}
+
+
+/* 向いている方向 */
+
+.user-direction {
+
+  position:absolute;
+
+  left:50%;
+  top:-15px;
+
+  transform:
+    translateX(-50%)
+    rotate(0deg);
+
+  transform-origin:
+    50% 28px;
+
+  width:0;
+  height:0;
+
+  border-left:7px solid transparent;
+  border-right:7px solid transparent;
+  border-bottom:14px solid #4285f4;
+
+  filter:
+    drop-shadow(
+      0 1px 2px rgba(0,0,0,0.3)
+    );
+
+}
   
 </style>  
 
@@ -913,7 +967,32 @@ function time(a,b){
 
 } 
 
+// ================================
+// 現在地マーカー
+// ================================
 
+function createUserIcon(){
+
+  return L.divIcon({
+
+    className:"",
+
+    html:`
+      <div class="user-location-icon">
+
+        <div class="user-direction"></div>
+
+      </div>
+    `,
+
+    iconSize:[32,32],
+
+    iconAnchor:[16,16]
+
+  });
+
+}
+  
 // ピン  
 
 function createIcon(tag){  
@@ -1129,97 +1208,194 @@ window.recommendMarker.on("click", () => {
 // 現在地の取得・追従
 // ================================
 
+// ================================
+// 現在地の取得・追従
+// ================================
+
 let locationWatchId = null;
-let firstLocation = true;
+
 
 function startLocationTracking(){
 
   if(!navigator.geolocation){
 
-    alert("この端末・ブラウザでは位置情報を利用できません");
+    alert(
+      "この端末・ブラウザでは位置情報を利用できません"
+    );
+
     return;
 
   }
 
-  locationWatchId = navigator.geolocation.watchPosition(
 
-    pos => {
+  locationWatchId =
+    navigator.geolocation.watchPosition(
 
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
+      function(pos){
 
-      const newLatLng = L.latLng(lat, lng);
+        const lat =
+          pos.coords.latitude;
 
-      // 初回
-      if(!userMarker){
+        const lng =
+          pos.coords.longitude;
 
-        userMarker = L.marker(
-          newLatLng
-        )
-        .addTo(map)
-        .bindPopup("現在地");
 
-      }else{
+        const newLatLng =
+          L.latLng(lat,lng);
 
-        // 現在地マーカーを移動
-        userMarker.setLatLng(newLatLng);
+
+        // ==========================
+        // 現在地マーカー
+        // ==========================
+
+        if(!userMarker){
+
+          userMarker =
+            L.marker(
+
+              newLatLng,
+
+              {
+                icon:createUserIcon()
+              }
+
+            )
+            .addTo(map)
+            .bindPopup("現在地");
+
+
+        }else{
+
+          // 現在地を移動
+
+          userMarker.setLatLng(
+            newLatLng
+          );
+
+        }
+
+
+        // ==========================
+        // 地図を現在地に追従
+        // ==========================
+
+        if(
+          firstLocation ||
+          followLocation
+        ){
+
+          map.setView(
+
+            newLatLng,
+
+            firstLocation
+              ? 15
+              : map.getZoom()
+
+          );
+
+          firstLocation = false;
+
+        }
+
+
+        // ==========================
+        // 最寄りの史跡を再計算
+        // ==========================
+
+        findNearest();
+
+
+        // ==========================
+        // 開いているポップアップ更新
+        // ==========================
+
+        refreshPopup();
+
+
+        // ==========================
+        // 進行方向
+        // ==========================
+
+        const heading =
+          pos.coords.heading;
+
+
+        if(
+          heading !== null &&
+          !Number.isNaN(heading)
+        ){
+
+          const arrow =
+            document.querySelector(
+              ".user-direction"
+            );
+
+
+          if(arrow){
+
+            arrow.style.transform =
+              `translateX(-50%) rotate(${heading}deg)`;
+
+          }
+
+        }
+
+      },
+
+
+      function(error){
+
+        console.error(
+          "位置情報エラー:",
+          error
+        );
+
+
+        if(error.code === 1){
+
+          alert(
+            "位置情報の利用が許可されていません"
+          );
+
+        }
+
+        else if(error.code === 2){
+
+          alert(
+            "現在地を取得できません"
+          );
+
+        }
+
+        else if(error.code === 3){
+
+          alert(
+            "現在地の取得がタイムアウトしました"
+          );
+
+        }
+
+      },
+
+
+      {
+
+        enableHighAccuracy:true,
+
+        timeout:10000,
+
+        maximumAge:3000
 
       }
 
-      // 初回だけ現在地へ移動
-    if(firstLocation || followLocation){
-
-  map.setView(
-    newLatLng,
-    firstLocation ? 15 : map.getZoom()
-  );
-
-  firstLocation = false;
-
-}
-
-      // 現在地が変わったので最寄りを再計算
-      findNearest();
-
-      // 選択中のポップアップの時間も更新
-      refreshPopup();
-
-    },
-
-    error => {
-
-      console.error("位置情報エラー:", error);
-
-      switch(error.code){
-
-        case 1:
-          alert("位置情報の利用が許可されていません");
-          break;
-
-        case 2:
-          alert("現在地を取得できません");
-          break;
-
-        case 3:
-          alert("現在地の取得がタイムアウトしました");
-          break;
-
-      }
-
-    },
-
-    {
-      enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 3000
-    }
-
-  );
+    );
 
 }
 
 
 // 現在地追従開始
+
 startLocationTracking();
 
 
@@ -1412,6 +1588,13 @@ async function drawRoute(from,to){
 }
 
   updateUI();  
+
+  const followBtn =
+  document.getElementById("follow-btn");
+
+followBtn.classList.add("active");
+
+followBtn.textContent = "📍追従中";
 
 
   /* 閉じる */  
