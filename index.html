@@ -36,45 +36,34 @@ html,body { height:100%; margin:0; font-family:'Noto Sans JP', sans-serif; backg
 ========================= */  
 
 
-.recommend-card{  
+.recommend-card{
+  position:absolute;
 
-  position:absolute;  
+  left:50%;
 
-  left:50%;  
+  bottom:145px;
 
-  bottom:90px;  
+  transform:translateX(-50%);
 
-  transform:translateX(-50%);  
+  width:280px;
 
-  width:280px;  
+  background:rgba(255,250,243,0.96);
 
+  backdrop-filter:blur(10px);
 
-  background:rgba(255,250,243,0.96);  
+  border:1px solid rgba(214,195,163,0.7);
 
-  
-  backdrop-filter:blur(10px);  
+  border-radius:18px;
 
+  padding:14px;
 
-  border:1px solid rgba(214,195,163,0.7);  
+  z-index:1200;
 
-  
-  border-radius:18px;  
+  box-shadow:0 8px 24px rgba(0,0,0,0.18);
 
-  padding:14px;  
-
-
-  z-index:1200;  
-
-  
-  box-shadow:0 8px 24px rgba(0,0,0,0.18);  
-
-  
-  transition:  
-    
-    opacity 0.3s,  
-
-    transform 0.3s;  
-  
+  transition:
+    opacity 0.3s,
+    transform 0.3s;
 }  
  
 
@@ -206,51 +195,34 @@ html,body { height:100%; margin:0; font-family:'Noto Sans JP', sans-serif; backg
 ========================= */  
 
   
-.restore-btn{  
+.restore-btn{
+  position:absolute;
 
-  
-  position:absolute;  
+  right:18px;
+  bottom:145px;
 
-  
-  right:18px;  
+  width:52px;
+  height:52px;
 
-  bottom:90px;  
+  border-radius:50%;
 
-  
-  width:52px;  
+  border:none;
 
-  height:52px;  
+  background:rgba(255,250,243,0.96);
 
-  border-radius:50%;  
+  backdrop-filter:blur(10px);
 
-  
-  border:none;  
+  box-shadow:0 6px 18px rgba(0,0,0,0.18);
 
-  
-  background:rgba(255,250,243,0.96);  
+  font-size:22px;
 
-  
-  backdrop-filter:blur(10px);  
+  z-index:1200;
 
-  
-  box-shadow:0 6px 18px rgba(0,0,0,0.18);  
+  cursor:pointer;
 
-
-  font-size:22px;  
-
-  
-  z-index:1200;  
-
-
-  cursor:pointer;  
-
-  
-  transition:  
-
-    transform 0.2s,  
-
-    opacity 0.3s;  
-
+  transition:
+    transform 0.2s,
+    opacity 0.3s;
 }  
 
 .restore-btn:hover{  
@@ -482,7 +454,7 @@ button.active {
 
 } 
 
-  .filter-bar{
+ .filter-bar{
 
   position:absolute;
 
@@ -492,26 +464,36 @@ button.active {
   bottom:72px;
 
   display:flex;
-
   gap:8px;
 
   overflow-x:auto;
+  overflow-y:hidden;
 
-  padding:10px;
+  padding:8px 16px;
 
   z-index:1100;
 
+  scrollbar-width:none;
+
+  -webkit-overflow-scrolling:touch;
+
+  touch-action:pan-x;
+
+  scroll-snap-type:x proximity;
+}
+
+.filter-bar::-webkit-scrollbar{
+  display:none;
 }
 
 .filter-chip{
 
-  flex-shrink:0;
+  flex:0 0 auto;
 
   border:none;
-
   border-radius:999px;
 
-  padding:8px 14px;
+  padding:9px 16px;
 
   background:#fff;
 
@@ -519,16 +501,21 @@ button.active {
 
   box-shadow:0 2px 8px rgba(0,0,0,.15);
 
+  white-space:nowrap;
+
+  font-size:13px;
+
+  cursor:pointer;
+
+  scroll-snap-align:start;
 }
 
 .filter-chip.active{
 
   background:#6f4e37;
-
   color:white;
 
 }
-
 #follow-btn {
   position:absolute;
   right:18px;
@@ -1139,101 +1126,117 @@ db.ref("locations").on("value",snap=>{
   
 // 最寄り  
 
-function findNearest(){  
+function findNearest(){
 
-  if(!userMarker) return;  
+  if(!userMarker) return;
 
-  
-  let min=Infinity;  
+  let min = Infinity;
+  nearest = null;
 
-nearest = null;
-  
-  markers.forEach(m=>{  
+  markers.forEach(m=>{
 
-   if(currentFilters.length > 0){
+    if(currentFilters.length > 0){
 
-  const visible =
-    currentFilters.some(filter =>
-      m.data.tag.includes(filter)
-    );
+      const visible =
+        currentFilters.some(filter =>
+          m.data.tag.includes(filter)
+        );
 
-  if(!visible){
+      if(!visible) return;
+    }
+
+    const d =
+      dist(
+        userMarker.getLatLng(),
+        m.getLatLng()
+      );
+
+    if(d < min){
+
+      min = d;
+      nearest = m;
+
+    }
+
+  });
+
+  // 候補がない場合
+  if(!nearest){
+
+    updateRecommendCard(null);
+
+    if(window.recommendMarker){
+
+      map.removeLayer(
+        window.recommendMarker
+      );
+
+      window.recommendMarker = null;
+
+    }
+
     return;
+
   }
 
-}
+  // 新しいおすすめ
+  if(nearest.data.name !== lastNearestName){
 
-    const d=dist(userMarker.getLatLng(),m.getLatLng());  
+    cardClosed = false;
+    lastNearestName = nearest.data.name;
 
-    if(d<min){  
+  }
 
-      min=d;  
+  updateRecommendCard(nearest);
 
-      nearest=m;  
+  if(window.recommendMarker){
 
-    }  
+    map.removeLayer(
+      window.recommendMarker
+    );
 
-  });  
+  }
 
-  
-  if(nearest){  
+  window.recommendMarker =
+    L.marker(
+      nearest.getLatLng(),
+      {
+        icon:L.divIcon({
 
-    /* 新しいおすすめになったら再表示 */  
+          className:"recommend-wrap",
 
+          html:`
+            <div class="recommend-box">
+              ⭐
+            </div>
+          `
 
-if(nearest.data.name !== lastNearestName){  
+        })
+      }
+    ).addTo(map);
 
-  cardClosed = false;  
+  window.recommendMarker.on("click",()=>{
 
+    if(!userMarker) return;
 
-  lastNearestName = nearest.data.name;  
+    const d = nearest.data;
 
-}  
+    const txt = `
+      <b>${d.name}</b><br>
+      ${d.comment}<br>
+      ${d.tag}<br><br>
 
-  
-updateRecommendCard(nearest);  
+      <button
+        onclick="go(${d.lat},${d.lng})">
+        ルート表示
+      </button>
+    `;
 
-    if(window.recommendMarker)  
+    window.recommendMarker
+      .bindPopup(txt)
+      .openPopup();
 
-      map.removeLayer(window.recommendMarker);  
-
-  
-    window.recommendMarker = L.marker(nearest.getLatLng(),{  
-
-  icon:L.divIcon({  
-
-    className:"recommend-wrap",  
-
-    html:`<div class="recommend-box">⭐</div>`  
-
-  })  
-
-}).addTo(map);  
-
-  
-window.recommendMarker.on("click", () => {  
-
-  if(!userMarker) return;  
-
-  const d = nearest.data;  
-
-  
-  const txt = `  
-
-    <b>${d.name}</b><br>  
-
-    ${d.comment}<br>  
-
-    ${d.tag}  
-
-  `;  
-
-
-  window.recommendMarker.bindPopup(txt).openPopup();  
-
-});  
-
-  }  
+  });
 
 }  
 
@@ -1742,54 +1745,6 @@ document
     }
 
   });
-
-}
-
-  // ================================
-// コンパス
-// ================================
-
-function updateCompass(event){
-
-  let heading = null;
-
-
-  // iPhone / iPad
-  if(
-    event.webkitCompassHeading !== undefined &&
-    event.webkitCompassHeading !== null
-  ){
-
-    heading = event.webkitCompassHeading;
-
-  }
-
-
-  // Android
-  else if(event.alpha !== null){
-
-    heading = 360 - event.alpha;
-
-  }
-
-
-  if(heading === null){
-
-    return;
-
-  }
-
-
-  const arrow =
-    document.querySelector(".user-heading");
-
-
-  if(arrow){
-
-   arrow.style.transform =
-  `translateX(-50%) rotate(${heading}deg)`;
-
-  }
 
 }
 
