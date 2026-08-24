@@ -602,6 +602,41 @@ button.active {
     50% 27px;
 
 }
+
+  #compass-btn {
+
+  position:absolute;
+
+  right:18px;
+  top:130px;
+
+  z-index:1200;
+
+  padding:10px 14px;
+
+  border:none;
+  border-radius:999px;
+
+  background:rgba(255,250,243,0.96);
+
+  color:#3e2f1c;
+
+  box-shadow:
+    0 4px 12px rgba(0,0,0,0.18);
+
+  font-size:13px;
+
+  cursor:pointer;
+
+}
+
+#compass-btn.active {
+
+  background:#6f4e37;
+
+  color:white;
+
+}
   
 </style>  
 
@@ -855,6 +890,7 @@ let transport="foot";
 
   // 現在地追従
 let followLocation = true;
+  let firstLocation = true;
 
 function toggleFollow(){
 
@@ -986,8 +1022,8 @@ function createUserIcon(){
       </div>
     `,
 
-    iconSize:[30,30],
-    iconAnchor:[15,15]
+    iconSize:[32,32],
+    iconAnchor:[16,16]
 
   });
 
@@ -1312,34 +1348,6 @@ function startLocationTracking(){
 
         refreshPopup();
 
-
-        // ==========================
-        // 進行方向
-        // ==========================
-
-        const heading =
-          pos.coords.heading;
-
-
-        if(
-          heading !== null &&
-          !Number.isNaN(heading)
-        ){
-
-          const arrow =
-            document.querySelector(
-              ".user-direction"
-            );
-
-
-          if(arrow){
-
-            arrow.style.transform =
-              `translateX(-50%) rotate(${heading}deg)`;
-
-          }
-
-        }
 
       },
 
@@ -1778,14 +1786,70 @@ function updateCompass(event){
 
   if(arrow){
 
-    arrow.style.transform =
-      `translateX(-50%) rotate(${heading}deg)`;
+   arrow.style.transform =
+  `translateX(-50%) rotate(${-heading}deg)`;
 
   }
 
 }
 
   async function startCompass(){
+
+  // iPhone / iPad
+  if(
+    typeof DeviceOrientationEvent !== "undefined" &&
+    typeof DeviceOrientationEvent.requestPermission === "function"
+  ){
+
+    try{
+
+      const permission =
+        await DeviceOrientationEvent.requestPermission();
+
+      if(permission !== "granted"){
+
+        alert("コンパスの利用が許可されませんでした");
+
+        return;
+
+      }
+
+    }catch(error){
+
+      console.error(error);
+
+      alert("コンパスを利用できません");
+
+      return;
+
+    }
+
+  }
+
+
+  window.removeEventListener(
+    "deviceorientation",
+    updateCompass,
+    true
+  );
+
+
+  window.addEventListener(
+    "deviceorientation",
+    updateCompass,
+    true
+  );
+
+
+  const btn =
+    document.getElementById("compass-btn");
+
+
+  btn.classList.add("active");
+
+  btn.textContent = "🧭コンパスON";
+
+}
 
   // iPhone / iPad
 
