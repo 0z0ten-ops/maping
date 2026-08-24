@@ -529,6 +529,31 @@ button.active {
 
 }
 
+#follow-btn {
+  position:absolute;
+  right:18px;
+  top:80px;
+
+  z-index:1200;
+
+  padding:10px 14px;
+  border:none;
+  border-radius:999px;
+
+  background:rgba(255,250,243,0.96);
+  color:#3e2f1c;
+
+  box-shadow:0 4px 12px rgba(0,0,0,0.18);
+
+  font-size:13px;
+  cursor:pointer;
+}
+
+#follow-btn.active {
+  background:#6f4e37;
+  color:white;
+}
+  
 </style>  
 
 </head>  
@@ -541,6 +566,9 @@ button.active {
 
 <div id="map"></div>  
 
+  <button id="follow-btn" onclick="toggleFollow()">
+  現在地追従
+</button>
 
   <!-- おすすめカード -->  
 
@@ -737,7 +765,7 @@ document.getElementById("rec-time").textContent =
 
 const firebaseConfig = {  
 
-  apiKey:"AIzaSyA_bAVs54VH8egBWlLHGXpq-34HNR97PRg",  
+  apiKey:"SUMPLE",  
 
   databaseURL:"https://map-yoisyo-default-rtdb.firebaseio.com"  
 
@@ -771,6 +799,39 @@ let transport="foot";
   let selectedMarker = null; 
 
   let cardClosed = false;  
+
+  // 現在地追従
+let followLocation = true;
+
+function toggleFollow(){
+
+  followLocation = !followLocation;
+
+  const btn = document.getElementById("follow-btn");
+
+  if(followLocation){
+
+    btn.classList.add("active");
+    btn.textContent = "📍追従中";
+
+    // ONにした瞬間、現在地へ移動
+    if(userMarker){
+
+      map.setView(
+        userMarker.getLatLng(),
+        map.getZoom()
+      );
+
+    }
+
+  }else{
+
+    btn.classList.remove("active");
+    btn.textContent = "📍現在地追従";
+
+  }
+
+}
 
 let lastNearestName = "";  
 
@@ -1064,21 +1125,102 @@ window.recommendMarker.on("click", () => {
 
 // 現在地  
 
-navigator.geolocation.getCurrentPosition(pos=>{  
+// ================================
+// 現在地の取得・追従
+// ================================
 
-  const lat=pos.coords.latitude;  
+let locationWatchId = null;
+let firstLocation = true;
 
-  const lng=pos.coords.longitude;  
+function startLocationTracking(){
 
-  
-  userMarker=L.marker([lat,lng]).addTo(map).bindPopup("現在地");  
+  if(!navigator.geolocation){
 
-  map.setView([lat,lng],15);  
+    alert("この端末・ブラウザでは位置情報を利用できません");
+    return;
 
-  
-  findNearest();  
+  }
 
-});  
+  locationWatchId = navigator.geolocation.watchPosition(
+
+    pos => {
+
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+
+      const newLatLng = L.latLng(lat, lng);
+
+      // 初回
+      if(!userMarker){
+
+        userMarker = L.marker(
+          newLatLng
+        )
+        .addTo(map)
+        .bindPopup("現在地");
+
+      }else{
+
+        // 現在地マーカーを移動
+        userMarker.setLatLng(newLatLng);
+
+      }
+
+      // 初回だけ現在地へ移動
+    if(firstLocation || followLocation){
+
+  map.setView(
+    newLatLng,
+    firstLocation ? 15 : map.getZoom()
+  );
+
+  firstLocation = false;
+
+}
+
+      // 現在地が変わったので最寄りを再計算
+      findNearest();
+
+      // 選択中のポップアップの時間も更新
+      refreshPopup();
+
+    },
+
+    error => {
+
+      console.error("位置情報エラー:", error);
+
+      switch(error.code){
+
+        case 1:
+          alert("位置情報の利用が許可されていません");
+          break;
+
+        case 2:
+          alert("現在地を取得できません");
+          break;
+
+        case 3:
+          alert("現在地の取得がタイムアウトしました");
+          break;
+
+      }
+
+    },
+
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 3000
+    }
+
+  );
+
+}
+
+
+// 現在地追従開始
+startLocationTracking();
 
 
 // UI  
