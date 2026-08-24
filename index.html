@@ -624,6 +624,357 @@ button.active {
   color:white;
 
 }
+
+  /* ================================
+   検索パネル
+================================ */
+
+.search-panel{
+
+  position:absolute;
+
+  top:70px;
+  left:20px;
+  right:20px;
+
+  z-index:1200;
+
+}
+
+
+/* 検索欄 */
+
+.search-row{
+
+  display:flex;
+
+  gap:6px;
+
+}
+
+
+#search-input{
+
+  flex:1;
+
+  min-width:0;
+
+  height:42px;
+
+  box-sizing:border-box;
+
+  border:none;
+
+  border-radius:22px;
+
+  padding:0 16px;
+
+  background:rgba(255,250,243,0.96);
+
+  backdrop-filter:blur(10px);
+
+  box-shadow:
+    0 4px 12px rgba(0,0,0,0.18);
+
+  font-size:14px;
+
+  color:#3e2f1c;
+
+  outline:none;
+
+}
+
+
+#search-input:focus{
+
+  box-shadow:
+    0 0 0 2px #6f4e37,
+    0 4px 12px rgba(0,0,0,0.18);
+
+}
+
+
+#search-btn{
+
+  width:44px;
+  height:42px;
+
+  padding:0;
+
+  border-radius:50%;
+
+  background:#6f4e37;
+
+  color:white;
+
+  font-size:18px;
+
+}
+
+
+/* ================================
+   検索ボタン
+================================ */
+
+.search-actions{
+
+  display:flex;
+
+  gap:8px;
+
+  margin-top:8px;
+
+}
+
+
+.search-actions button{
+
+  background:rgba(255,250,243,0.96);
+
+  backdrop-filter:blur(10px);
+
+  box-shadow:
+    0 3px 10px rgba(0,0,0,0.15);
+
+  padding:8px 14px;
+
+}
+
+
+/* ================================
+   一覧パネル
+================================ */
+
+.location-list-panel{
+
+  position:absolute;
+
+  z-index:1300;
+
+  top:70px;
+
+  left:20px;
+  right:20px;
+
+  max-height:60vh;
+
+  overflow:hidden;
+
+  background:rgba(255,250,243,0.98);
+
+  backdrop-filter:blur(12px);
+
+  border-radius:18px;
+
+  box-shadow:
+    0 8px 24px rgba(0,0,0,0.2);
+
+}
+
+
+/* 非表示 */
+
+.hidden-panel{
+
+  display:none;
+
+}
+
+
+/* ================================
+   一覧ヘッダー
+================================ */
+
+.list-header{
+
+  height:50px;
+
+  display:flex;
+
+  align-items:center;
+
+  justify-content:space-between;
+
+  padding:0 14px;
+
+  box-sizing:border-box;
+
+  border-bottom:
+    1px solid rgba(214,195,163,0.6);
+
+  color:#3e2f1c;
+
+  font-weight:600;
+
+}
+
+
+.list-header button{
+
+  width:32px;
+  height:32px;
+
+  padding:0;
+
+  border-radius:50%;
+
+  font-size:18px;
+
+}
+
+
+/* ================================
+   一覧
+================================ */
+
+#location-list{
+
+  max-height:
+    calc(60vh - 50px);
+
+  overflow-y:auto;
+
+  padding:8px;
+
+}
+
+
+/* ================================
+   一覧アイテム
+================================ */
+
+.location-item{
+
+  display:flex;
+
+  align-items:center;
+
+  gap:10px;
+
+  padding:12px;
+
+  margin-bottom:6px;
+
+  border-radius:12px;
+
+  background:#fff;
+
+  cursor:pointer;
+
+  transition:0.2s;
+
+}
+
+
+.location-item:hover{
+
+  background:#f3eadf;
+
+}
+
+
+.location-icon{
+
+  width:40px;
+  height:40px;
+
+  display:flex;
+
+  align-items:center;
+  justify-content:center;
+
+  border-radius:50%;
+
+  background:#f0e4d2;
+
+  font-size:20px;
+
+  flex-shrink:0;
+
+}
+
+
+.location-info{
+
+  flex:1;
+
+  min-width:0;
+
+}
+
+
+.location-name{
+
+  font-size:15px;
+
+  font-weight:600;
+
+  color:#3e2f1c;
+
+  white-space:nowrap;
+
+  overflow:hidden;
+
+  text-overflow:ellipsis;
+
+}
+
+
+.location-comment{
+
+  margin-top:3px;
+
+  font-size:11px;
+
+  color:#6f6258;
+
+  white-space:nowrap;
+
+  overflow:hidden;
+
+  text-overflow:ellipsis;
+
+}
+
+
+.favorite-btn{
+
+  width:36px;
+  height:36px;
+
+  padding:0;
+
+  border-radius:50%;
+
+  background:#f5eee5;
+
+  font-size:18px;
+
+  flex-shrink:0;
+
+}
+
+
+.favorite-btn.is-favorite{
+
+  background:#fff0b8;
+
+}
+
+
+/* 検索結果なし */
+
+.no-result{
+
+  padding:30px 15px;
+
+  text-align:center;
+
+  color:#8c7b6b;
+
+  font-size:13px;
+
+}
   
 </style>  
 
@@ -636,6 +987,68 @@ button.active {
 <div class="header">史跡マップ</div>  
 
 <div id="map"></div>  
+
+  <!-- ================================
+     検索・一覧・お気に入り
+================================ -->
+
+<div class="search-panel">
+
+  <div class="search-row">
+
+    <input
+      id="search-input"
+      type="search"
+      placeholder="史跡名・キーワードを検索"
+      oninput="searchLocations()"
+    >
+
+    <button
+      id="search-btn"
+      onclick="searchLocations()"
+    >
+      🔍
+    </button>
+
+  </div>
+
+  <div class="search-actions">
+
+    <button onclick="showLocationList()">
+      📋 一覧
+    </button>
+
+    <button onclick="showFavorites()">
+      ⭐ お気に入り
+    </button>
+
+  </div>
+
+</div>
+
+
+<!-- 一覧・検索結果パネル -->
+
+<div
+  id="location-list-panel"
+  class="location-list-panel hidden-panel"
+>
+
+  <div class="list-header">
+
+    <span id="list-title">
+      史跡一覧
+    </span>
+
+    <button onclick="closeLocationList()">
+      ×
+    </button>
+
+  </div>
+
+  <div id="location-list"></div>
+
+</div>
 
   <button id="follow-btn" onclick="toggleFollow()">
   現在地追従
@@ -870,6 +1283,14 @@ let lang="ja";
 let transport="foot";  
 
   let currentFilters = [];
+
+  // ================================
+// お気に入り
+// ================================
+
+let favorites = JSON.parse(
+  localStorage.getItem("historicMapFavorites") || "[]"
+);
   
   let selectedMarker = null; 
 
@@ -1846,6 +2267,615 @@ async function startCompass(){
   btn.classList.add("active");
 
   btn.textContent = "🧭コンパスON";
+
+}
+
+  // ================================
+// お気に入り
+// ================================
+
+function isFavorite(name){
+
+  return favorites.includes(name);
+
+}
+
+
+function toggleFavorite(name){
+
+  const index =
+    favorites.indexOf(name);
+
+
+  if(index === -1){
+
+    favorites.push(name);
+
+  }else{
+
+    favorites.splice(index,1);
+
+  }
+
+
+  localStorage.setItem(
+    "historicMapFavorites",
+    JSON.stringify(favorites)
+  );
+
+
+  // 現在表示している一覧を更新
+
+  const panel =
+    document.getElementById(
+      "location-list-panel"
+    );
+
+  if(!panel.classList.contains("hidden-panel")){
+
+    const title =
+      document.getElementById(
+        "list-title"
+      ).textContent;
+
+
+    if(title.includes("お気に入り")){
+
+      showFavorites();
+
+    }else{
+
+      showLocationList();
+
+    }
+
+  }
+
+}
+
+  // ================================
+// タグのアイコン
+// ================================
+
+function getLocationEmoji(tag){
+
+  if(!tag){
+    return "📍";
+  }
+
+  if(tag.includes("展示施設"))
+    return "🏛️";
+
+  if(tag.includes("史跡"))
+    return "🗿";
+
+  if(tag.includes("噂"))
+    return "💬";
+
+  if(tag.includes("川"))
+    return "🌊";
+
+  return "📍";
+
+}
+
+  // ================================
+// HTMLエスケープ
+// ================================
+
+function escapeHTML(text){
+
+  if(text === undefined ||
+     text === null){
+
+    return "";
+
+  }
+
+  return String(text)
+    .replace(/&/g,"&amp;")
+    .replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;")
+    .replace(/'/g,"&#039;");
+
+}
+
+  // ================================
+// 史跡一覧
+// ================================
+
+function showLocationList(){
+
+  const panel =
+    document.getElementById(
+      "location-list-panel"
+    );
+
+  const list =
+    document.getElementById(
+      "location-list"
+    );
+
+  const title =
+    document.getElementById(
+      "list-title"
+    );
+
+
+  title.textContent = "史跡一覧";
+
+  list.innerHTML = "";
+
+
+  if(markers.length === 0){
+
+    list.innerHTML =
+      `<div class="no-result">
+        史跡がありません
+      </div>`;
+
+    panel.classList.remove(
+      "hidden-panel"
+    );
+
+    return;
+
+  }
+
+
+  markers.forEach(marker => {
+
+    const d = marker.data;
+
+    const favorite =
+      isFavorite(d.name);
+
+
+    const item =
+      document.createElement("div");
+
+    item.className =
+      "location-item";
+
+
+    item.innerHTML = `
+
+      <div class="location-icon">
+        ${getLocationEmoji(d.tag)}
+      </div>
+
+      <div class="location-info">
+
+        <div class="location-name">
+          ${escapeHTML(d.name)}
+        </div>
+
+        <div class="location-comment">
+          ${escapeHTML(d.comment)}
+        </div>
+
+      </div>
+
+      <button
+        class="favorite-btn ${
+          favorite
+            ? "is-favorite"
+            : ""
+        }"
+      >
+        ${favorite ? "⭐" : "☆"}
+      </button>
+
+    `;
+
+
+    // お気に入りボタン
+
+    const favoriteBtn =
+      item.querySelector(
+        ".favorite-btn"
+      );
+
+
+    favoriteBtn.onclick =
+      function(event){
+
+        event.stopPropagation();
+
+        toggleFavorite(d.name);
+
+      };
+
+
+    // 史跡をクリック
+
+    item.onclick = () => {
+
+      map.setView(
+        marker.getLatLng(),
+        17
+      );
+
+
+      if(userMarker){
+
+        const text = `
+
+          <b>${escapeHTML(d.name)}</b><br>
+
+          ${escapeHTML(d.comment)}<br>
+
+          ${escapeHTML(d.tag)}<br><br>
+
+          <button
+            onclick="
+              go(${d.lat},${d.lng})
+            "
+          >
+            ルート表示
+          </button>
+
+        `;
+
+
+        marker.bindPopup(text);
+
+      }
+
+
+      marker.openPopup();
+
+      closeLocationList();
+
+    };
+
+
+    list.appendChild(item);
+
+  });
+
+
+  panel.classList.remove(
+    "hidden-panel"
+  );
+
+}
+
+  // ================================
+// お気に入り一覧
+// ================================
+
+function showFavorites(){
+
+  const panel =
+    document.getElementById(
+      "location-list-panel"
+    );
+
+  const list =
+    document.getElementById(
+      "location-list"
+    );
+
+  const title =
+    document.getElementById(
+      "list-title"
+    );
+
+
+  title.textContent =
+    "⭐ お気に入り";
+
+  list.innerHTML = "";
+
+
+  const favoriteMarkers =
+    markers.filter(marker => {
+
+      return isFavorite(
+        marker.data.name
+      );
+
+    });
+
+
+  if(favoriteMarkers.length === 0){
+
+    list.innerHTML = `
+
+      <div class="no-result">
+
+        ⭐
+
+        <br><br>
+
+        お気に入りはまだありません
+
+      </div>
+
+    `;
+
+  }else{
+
+    favoriteMarkers.forEach(marker => {
+
+      const d = marker.data;
+
+
+      const item =
+        document.createElement("div");
+
+      item.className =
+        "location-item";
+
+
+      item.innerHTML = `
+
+        <div class="location-icon">
+          ${getLocationEmoji(d.tag)}
+        </div>
+
+        <div class="location-info">
+
+          <div class="location-name">
+            ${escapeHTML(d.name)}
+          </div>
+
+          <div class="location-comment">
+            ${escapeHTML(d.comment)}
+          </div>
+
+        </div>
+
+        <button
+          class="favorite-btn is-favorite"
+        >
+          ⭐
+        </button>
+
+      `;
+
+
+      const favoriteBtn =
+        item.querySelector(
+          ".favorite-btn"
+        );
+
+
+      favoriteBtn.onclick =
+        function(event){
+
+          event.stopPropagation();
+
+          toggleFavorite(d.name);
+
+        };
+
+
+      item.onclick = () => {
+
+        map.setView(
+          marker.getLatLng(),
+          17
+        );
+
+
+        marker.openPopup();
+
+        closeLocationList();
+
+      };
+
+
+      list.appendChild(item);
+
+    });
+
+  }
+
+
+  panel.classList.remove(
+    "hidden-panel"
+  );
+
+}
+
+  // ================================
+// 一覧を閉じる
+// ================================
+
+function closeLocationList(){
+
+  document
+    .getElementById(
+      "location-list-panel"
+    )
+    .classList.add(
+      "hidden-panel"
+    );
+
+}
+
+  // ================================
+// 検索
+// ================================
+
+function searchLocations(){
+
+  const input =
+    document.getElementById(
+      "search-input"
+    );
+
+
+  const keyword =
+    input.value
+      .trim()
+      .toLowerCase();
+
+
+  const panel =
+    document.getElementById(
+      "location-list-panel"
+    );
+
+  const list =
+    document.getElementById(
+      "location-list"
+    );
+
+  const title =
+    document.getElementById(
+      "list-title"
+    );
+
+
+  title.textContent =
+    keyword
+      ? `🔍「${keyword}」の検索結果`
+      : "史跡一覧";
+
+
+  list.innerHTML = "";
+
+
+  const results =
+    markers.filter(marker => {
+
+      if(!keyword){
+
+        return true;
+
+      }
+
+
+      const d = marker.data;
+
+
+      const text = [
+
+        d.name,
+        d.comment,
+        d.tag
+
+      ]
+      .join(" ")
+      .toLowerCase();
+
+
+      return text.includes(keyword);
+
+    });
+
+
+  if(results.length === 0){
+
+    list.innerHTML = `
+
+      <div class="no-result">
+
+        🔍
+
+        <br><br>
+
+        「${escapeHTML(keyword)}」
+
+        に一致する史跡がありません
+
+      </div>
+
+    `;
+
+  }else{
+
+    results.forEach(marker => {
+
+      const d = marker.data;
+
+      const favorite =
+        isFavorite(d.name);
+
+
+      const item =
+        document.createElement("div");
+
+      item.className =
+        "location-item";
+
+
+      item.innerHTML = `
+
+        <div class="location-icon">
+          ${getLocationEmoji(d.tag)}
+        </div>
+
+        <div class="location-info">
+
+          <div class="location-name">
+            ${escapeHTML(d.name)}
+          </div>
+
+          <div class="location-comment">
+            ${escapeHTML(d.comment)}
+          </div>
+
+        </div>
+
+        <button
+          class="favorite-btn ${
+            favorite
+              ? "is-favorite"
+              : ""
+          }"
+        >
+          ${favorite ? "⭐" : "☆"}
+        </button>
+
+      `;
+
+
+      const favoriteBtn =
+        item.querySelector(
+          ".favorite-btn"
+        );
+
+
+      favoriteBtn.onclick =
+        function(event){
+
+          event.stopPropagation();
+
+          toggleFavorite(d.name);
+
+        };
+
+
+      item.onclick = () => {
+
+        map.setView(
+          marker.getLatLng(),
+          17
+        );
+
+
+        marker.openPopup();
+
+        closeLocationList();
+
+      };
+
+
+      list.appendChild(item);
+
+    });
+
+  }
+
+
+  panel.classList.remove(
+    "hidden-panel"
+  );
 
 }
 
