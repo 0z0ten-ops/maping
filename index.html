@@ -1649,9 +1649,11 @@ function createUserIcon(){
   
 // ピン  
 
-function createIcon(tag){  
+function createIcon(tag){
 
-  let svg="";  
+  tag = String(tag || "");
+
+  let svg="";
 
 
   if(tag.includes("展示施設"))  
@@ -1692,67 +1694,150 @@ function createIcon(tag){
   
 // Firebase  
 
-db.ref("locations").on("value",snap=>{  
+// ============================================================
+// Firebaseからlocationsを読み込む
+// ============================================================
 
-  const data=snap.val();  
+db.ref("locations").on("value", function(snapshot) {
 
-  if(!data) return;  
+  const data = snapshot.val();
 
-  
-  markers.forEach(m=>map.removeLayer(m));  
-
-  markers=[];  
-
-
-  Object.values(data).forEach(d=>{  
-
-    const m=L.marker([d.lat,d.lng],{  
-
-      icon:createIcon(d.tag)  
-
-    }).addTo(map);  
-
-  
-    m.data=d;  
+  console.log("Firebaseから受信:", data);
 
 
-    m.on("click",()=>{  
+  // データがない場合
+  if (!data) {
 
-      selectedMarker = m; 
+    console.log("Firebaseにlocationsがありません");
 
-      if(!userMarker) return alert("現在地取得できません");  
+    return;
 
-
-      const txt=`  
-
-  <b>${d.name}</b><br>  
-
-  ${d.comment}<br>  
-
-  ${d.tag}<br>  
-
-  所要時間:${time(userMarker.getLatLng(),m.getLatLng())}<br><br>  
-
-  <button onclick="go(${d.lat},${d.lng})">ルート表示</button>  
-
-`;  
-
-      m.unbindPopup();  
-
-      m.bindPopup(txt);  
-
-      m.openPopup();  
-
-    });  
-
-    markers.push(m);  
-
-  });  
+  }
 
 
-  findNearest();  
+  // 今あるマーカーを削除
+  markers.forEach(function(marker) {
 
-});  
+    map.removeLayer(marker);
+
+  });
+
+  markers = [];
+
+
+  // Firebaseのデータを1件ずつ処理
+  Object.values(data).forEach(function(d) {
+
+    // 緯度・経度を数字に変換
+    const lat = Number(d.lat);
+    const lng = Number(d.lng);
+
+
+    // 緯度・経度がないデータはスキップ
+    if (
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lng)
+    ) {
+
+      console.warn(
+        "緯度・経度がないデータをスキップ:",
+        d
+      );
+
+      return;
+
+    }
+
+
+    // タグが空でもエラーにならないようにする
+    const tag = String(d.tag || "");
+
+
+    // マーカーを作る
+    const marker = L.marker(
+      [lat, lng],
+      {
+        icon: createIcon(tag)
+      }
+    ).addTo(map);
+
+
+    // Firebaseのデータを保存
+    marker.data = {
+
+      name: String(d.name || "名称未設定"),
+
+      comment: String(d.comment || ""),
+
+      tag: tag,
+
+      lat: lat,
+
+      lng: lng
+
+    };
+
+
+    // マーカーを配列に保存
+    markers.push(marker);
+
+
+    // マーカーをクリックしたとき
+    marker.on("click", function() {
+
+      const info = marker.data;
+
+      marker.bindPopup(
+
+        "<b>" +
+        info.name +
+        "</b><br>" +
+
+        info.comment +
+        "<br>" +
+
+        "タグ：" +
+        info.tag
+
+      ).openPopup();
+
+    });
+
+  });
+
+
+  // 読み込んだ件数を表示
+  console.log(
+    "地図に表示した件数:",
+    markers.length
+  );
+
+
+  // マーカーが1つ以上あれば、
+  // 全部見える位置に自動移動
+  if (markers.length > 0) {
+
+    const bounds =
+      L.latLngBounds(
+        markers.map(function(marker) {
+
+          return marker.getLatLng();
+
+        })
+      );
+
+
+    map.fitBounds(
+      bounds,
+      {
+        padding: [50, 50],
+        maxZoom: 15
+      }
+    );
+
+  }
+
+});
 
   
 // 最寄り  
