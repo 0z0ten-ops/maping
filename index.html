@@ -1145,6 +1145,64 @@ button.active {
   }
 
 }
+
+  /* =========================
+   検索バー下の一覧・お気に入り
+========================= */
+
+.search-actions{
+
+  position:absolute;
+
+  top:178px;
+  left:20px;
+  right:20px;
+
+  z-index:1200;
+
+  display:flex;
+
+  gap:8px;
+
+}
+
+.search-actions button{
+
+  flex:0 0 auto;
+
+  background:rgba(255,250,243,0.96);
+
+  backdrop-filter:blur(10px);
+
+  border:1px solid rgba(214,195,163,0.7);
+
+  box-shadow:0 3px 10px rgba(0,0,0,0.15);
+
+  padding:8px 14px;
+
+  border-radius:999px;
+
+  color:#6f4e37;
+
+  font-size:13px;
+
+}
+
+
+/* スマホ */
+
+@media(max-width:600px){
+
+  .search-actions{
+
+    top:178px;
+
+    left:16px;
+    right:16px;
+
+  }
+
+}
   
 </style>  
 
@@ -1170,6 +1228,18 @@ button.active {
 
   <button onclick="searchLocations()">
     🔍
+  </button>
+
+</div>
+
+  <div class="search-actions">
+
+  <button onclick="showLocationList()">
+    📋 一覧
+  </button>
+
+  <button onclick="showFavorites()">
+    ⭐ お気に入り
   </button>
 
 </div>
