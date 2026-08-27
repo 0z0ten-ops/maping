@@ -1202,43 +1202,6 @@ button.active {
 
 </div>
 
-  <!-- ================================
-     検索・一覧・お気に入り
-================================ -->
-
-<div class="search-panel">
-
-  <div class="search-row">
-
-    <input
-      id="search-input"
-      type="search"
-      placeholder="史跡名・キーワードを検索"
-      oninput="searchLocations()"
-    >
-
-    <button
-      id="search-btn"
-      onclick="searchLocations()"
-    >
-      🔍
-    </button>
-
-  </div>
-
-  <div class="search-actions">
-
-    <button onclick="showLocationList()">
-      📋 一覧
-    </button>
-
-    <button onclick="showFavorites()">
-      ⭐ お気に入り
-    </button>
-
-  </div>
-
-</div>
 
 
 <!-- 一覧・検索結果パネル -->
@@ -3182,7 +3145,7 @@ function searchLocations(){
 // 検索
 // ================================
 
-function searchLocations(){
+  function searchLocations(){
 
   const input =
     document.getElementById("search-input");
@@ -3190,31 +3153,28 @@ function searchLocations(){
   const keyword =
     input.value.trim().toLowerCase();
 
-  if(keyword === ""){
+  markers.forEach(marker => {
 
-    updateMarkers();
+    const d = marker.data;
 
-    return;
+    const text = [
+      d.name,
+      d.comment,
+      d.tag
+    ]
+    .join(" ")
+    .toLowerCase();
 
-  }
+    if(
+      keyword === "" ||
+      text.includes(keyword)
+    ){
 
-  markers.forEach(m=>{
-
-    const d = m.data;
-
-    const text = `
-      ${d.name}
-      ${d.comment}
-      ${d.tag}
-    `.toLowerCase();
-
-    if(text.includes(keyword)){
-
-      map.addLayer(m);
+      map.addLayer(marker);
 
     }else{
 
-      map.removeLayer(m);
+      map.removeLayer(marker);
 
     }
 
