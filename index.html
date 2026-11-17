@@ -1968,7 +1968,7 @@ marker.on("click", async function() {
 
     const profile = getRouteProfile();
 
-    const apiKey = "AIzaSyA_bAVs54VH8egBWlLHGXpq-34HNR97PRg";
+    const apiKey = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjUzMGIyYmEyYmIyYjQxODc4YzMzM2I5ZmYyM2VmZDBlIiwiaCI6Im11cm11cjY0In0=";
 
     const response = await fetch(
       `https://api.openrouteservice.org/v2/directions/${profile}/geojson`,
@@ -2534,13 +2534,12 @@ async function drawRoute(from,to){
 
   const profile = getRouteProfile();
 
-  const apiKey = "AIzaSyA_bAVs54VH8egBWlLHGXpq-34HNR97PRg";
+  const apiKey = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjUzMGIyYmEyYmIyYjQxODc4YzMzM2I5ZmYyM2VmZDBlIiwiaCI6Im11cm11cjY0In0=";
 
   try{
 
     const url =
-      `https://api.openrouteservice.org/v2/directions/${profile}/geojson`;
-
+      `https://api.heigit.org/openrouteservice/v2/directions/${profile}/geojson`;
     const response = await fetch(url,{
 
       method:"POST",
