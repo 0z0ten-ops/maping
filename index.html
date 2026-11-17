@@ -1738,39 +1738,111 @@ function time(a,b){
 }  
 
   
-  function refreshPopup(){ 
 
-  if(!selectedMarker || !userMarker) return; 
+let popupRequestId = 0;
 
-  const d = selectedMarker.data; 
+// 選択中のピンのポップアップを更新
+async function refreshPopup(){
 
-  const txt = ` 
+  if(!selectedMarker || !userMarker) return;
 
-    <b>${d.name}</b><br> 
+  const marker = selectedMarker;
+  const d = marker.data;
+  const requestId = ++popupRequestId;
 
-    ${d.comment}<br> 
+  marker.setPopupContent(`
+    <b>${escapeHTML(d.name)}</b><br><br>
+    ${escapeHTML(d.comment)}<br><br>
+    タグ：${escapeHTML(d.tag)}<br><br>
+    ⏱ 所要時間：計算中...<br>
+    📏 距離：計算中...
+    <br><br>
+    <button onclick="go(${d.lat},${d.lng})">
+      ルート表示
+    </button>
+  `);
 
-    ${d.tag}<br> 
+  try{
 
-    所要時間:${time( 
+    const summary = await fetchRouteSummary(
+      userMarker.getLatLng(),
+      marker.getLatLng()
+    );
 
-      userMarker.getLatLng(), 
+    // 古いリクエストの結果は無視
+    if(requestId !== popupRequestId) return;
 
-      selectedMarker.getLatLng() 
+    if(selectedMarker !== marker) return;
 
-    )}<br><br> 
+    if(!marker.isPopupOpen()) return;
 
-    <button onclick="go(${d.lat},${d.lng})"> 
+    marker.setPopupContent(`
+      <b>${escapeHTML(d.name)}</b><br><br>
+      ${escapeHTML(d.comment)}<br><br>
+      タグ：${escapeHTML(d.tag)}<br><br>
+      ⏱ 所要時間：約${formatRouteDuration(summary.duration)}<br>
+      📏 距離：約${formatRouteDistance(summary.distance)}<br><br>
+      <button onclick="go(${d.lat},${d.lng})">
+        ルート表示
+      </button>
+    `);
 
-      ルート表示 
+  }catch(error){
 
-    </button> 
+    console.error("ポップアップ更新エラー:",error);
 
-  `; 
+    if(requestId === popupRequestId && marker.isPopupOpen()){
 
-  selectedMarker.setPopupContent(txt); 
+      marker.setPopupContent(
+        "ルート情報を取得できませんでした"
+      );
 
-} 
+    }
+
+  }
+
+}
+
+  
+async function fetchRouteSummary(from,to){
+
+  const profile = getRouteProfile();
+
+  const apiKey = "新しいAPIキーを設定";
+
+  const response = await fetch(
+    `https://api.openrouteservice.org/v2/directions/${profile}/geojson`,
+    {
+      method:"POST",
+
+      headers:{
+        "Authorization":apiKey,
+        "Content-Type":"application/json"
+      },
+
+      body:JSON.stringify({
+        coordinates:[
+          [from.lng,from.lat],
+          [to.lng,to.lat]
+        ]
+      })
+    }
+  );
+
+  if(!response.ok){
+    throw new Error(
+      "ルート取得エラー："+response.status
+    );
+  }
+
+  const data = await response.json();
+
+  if(!data.features || !data.features.length){
+    throw new Error("ルート情報がありません");
+  }
+
+  return data.features[0].properties.summary;
+}
 
 // ================================
 // 現在地マーカー
@@ -1941,6 +2013,8 @@ db.ref("locations").on("value", function(snapshot) {
 
 marker.on("click", async function() {
 
+  selectedMarker = marker;
+
   const info = marker.data;
 
   let popupContent = `
@@ -1970,27 +2044,6 @@ marker.on("click", async function() {
 
     const apiKey = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjUzMGIyYmEyYmIyYjQxODc4YzMzM2I5ZmYyM2VmZDBlIiwiaCI6Im11cm11cjY0In0=";
 
-    const response = await fetch(
-      `https://api.openrouteservice.org/v2/directions/${profile}/geojson`,
-      {
-        method:"POST",
-
-        headers:{
-          "Authorization":apiKey,
-          "Content-Type":"application/json"
-        },
-
-        body:JSON.stringify({
-          coordinates:[
-            [
-              userMarker.getLatLng().lng,
-              userMarker.getLatLng().lat
-            ],
-            [info.lng,info.lat]
-          ]
-        })
-      }
-    );
 
     if(!response.ok){
       throw new Error("ルート情報を取得できません");
@@ -2052,6 +2105,9 @@ marker.on("click", async function() {
     "地図に表示した件数:",
     markers.length
   );
+
+  // 現在のフィルターを再適用
+updateMarkers();
 
 
   // マーカーが1つ以上あれば、
@@ -2154,23 +2210,27 @@ function findNearest(){
 
   }
 
-  window.recommendMarker =
-    L.marker(
-      nearest.getLatLng(),
-      {
-        icon:L.divIcon({
 
-          className:"recommend-wrap",
+window.recommendMarker =
+  L.marker(
+    nearest.getLatLng(),
+    {
+      interactive:false,
 
-          html:`
-            <div class="recommend-box">
-              ⭐
-            </div>
-          `
+      icon:L.divIcon({
 
-        })
-      }
-    ).addTo(map);
+        className:"recommend-wrap",
+
+        html:`
+          <div class="recommend-box">
+            ⭐
+          </div>
+        `
+
+      })
+    }
+  ).addTo(map);
+
 
   window.recommendMarker.on("click",()=>{
 
@@ -2379,30 +2439,33 @@ function setLanguage(l){
 
   
 
+
 function setTransport(t){
 
   transport = t;
 
   updateUI();
 
-  // おすすめカード更新
+  // おすすめカードの時間を更新
   if(nearest){
     updateRecommendCard(nearest);
   }
 
-  // ルート表示中なら新しい移動手段で再検索
-  if(routeDestination && userMarker){
+  // 選択中のピンの時間を再計算
+  if(selectedMarker && userMarker){
+    refreshPopup();
+  }
 
+  // ルート表示中ならルートも再取得
+  if(routeDestination && userMarker){
     drawRoute(
       userMarker.getLatLng(),
       routeDestination
     );
-
   }
 
-  refreshPopup();
-
 }
+
   
 
   
