@@ -1201,6 +1201,25 @@ button.active {
   }
 
 }
+
+  /* =========================
+   ポップアップのルート表示ボタン
+========================= */
+
+.route-popup-btn {
+  background: #d6c3a3;
+  color: #3e2f1c;
+  border: none;
+  border-radius: 20px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.route-popup-btn:hover {
+  background: #c4ae8a;
+}
   
 </style>  
 
@@ -1825,39 +1844,16 @@ marker.on("click", function() {
   const info = marker.data;
 
   const popupContent = `
-    <div style="min-width:180px;">
+    <b>${escapeHTML(info.name)}</b><br>
+    ${escapeHTML(info.comment)}<br>
+    タグ：${escapeHTML(info.tag)}<br><br>
 
-      <b style="font-size:16px;">
-        ${escapeHTML(info.name)}
-      </b>
-
-      <br><br>
-
-      ${escapeHTML(info.comment)}
-
-      <br><br>
-
-      タグ：${escapeHTML(info.tag)}
-
-      <br><br>
-
-      <button
-  onclick="go(${info.lat},${info.lng})"
-  style="
-    background:#6f4e37;
-    color:white;
-    border:none;
-    border-radius:20px;
-    padding:6px 12px;
-    font-size:12px;
-    cursor:pointer;
-    transition:0.2s;
-  "
->
-  ルート表示
-</button>
-
-    </div>
+    <button
+      class="route-popup-btn"
+      onclick="go(${info.lat},${info.lng})"
+    >
+      ルート表示
+    </button>
   `;
 
   marker.bindPopup(popupContent).openPopup();
