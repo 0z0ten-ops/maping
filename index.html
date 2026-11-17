@@ -1220,6 +1220,77 @@ button.active {
 .route-popup-btn:hover {
   background: #c4ae8a;
 }
+
+  
+/* =========================
+   ルート情報カード
+========================= */
+
+.route-info-card {
+
+  position:absolute;
+
+  left:50%;
+  bottom:150px;
+
+  transform:translateX(-50%);
+
+  width:calc(100% - 48px);
+  max-width:340px;
+
+  box-sizing:border-box;
+
+  padding:16px;
+
+  background:rgba(255,250,243,0.97);
+
+  border:1px solid rgba(214,195,163,0.8);
+
+  border-radius:18px;
+
+  box-shadow:0 6px 20px rgba(0,0,0,0.18);
+
+  z-index:1250;
+
+  color:#3e2f1c;
+}
+
+.route-info-card.is-hidden {
+  display:none;
+}
+
+.route-info-title {
+  font-size:14px;
+  font-weight:600;
+  margin-bottom:12px;
+}
+
+.route-info-main {
+  display:flex;
+  justify-content:space-around;
+  text-align:center;
+  gap:10px;
+}
+
+.route-info-main div div {
+  font-size:23px;
+  font-weight:600;
+  color:#6f4e37;
+}
+
+.route-info-main small {
+  font-size:11px;
+  color:#8c6f56;
+}
+
+#route-transport {
+  margin-top:12px;
+  padding-top:10px;
+  border-top:1px solid #e5d8c7;
+  font-size:12px;
+  color:#6f4e37;
+}
+
   
 </style>  
 
@@ -1384,6 +1455,33 @@ button.active {
   </button>
 
 </div>
+
+  
+<!-- ルート情報カード -->
+<div id="route-info-card" class="route-info-card is-hidden">
+
+  <div class="route-info-title">
+     目的地までのルート
+  </div>
+
+  <div class="route-info-main">
+    <div>
+      <div id="route-duration">--</div>
+      <small>予想所要時間</small>
+    </div>
+
+    <div>
+      <div id="route-distance">--</div>
+      <small>ルート距離</small>
+    </div>
+  </div>
+
+  <div id="route-transport">
+    移動手段：徒歩
+  </div>
+
+</div>
+
   
 <div class="bottom-bar">  
 
@@ -1839,14 +1937,18 @@ db.ref("locations").on("value", function(snapshot) {
     // マーカーをクリックしたとき
   
 // マーカーをクリックしたとき
-marker.on("click", function() {
+
+
+marker.on("click", async function() {
 
   const info = marker.data;
 
-  const popupContent = `
-    <b>${escapeHTML(info.name)}</b><br>
-    ${escapeHTML(info.comment)}<br>
+  let popupContent = `
+    <b>${escapeHTML(info.name)}</b><br><br>
+    ${escapeHTML(info.comment)}<br><br>
     タグ：${escapeHTML(info.tag)}<br><br>
+    ⏱ ルート所要時間：計算中...<br>
+    📏 ルート距離：計算中...<br><br>
 
     <button
       class="route-popup-btn"
@@ -1858,7 +1960,88 @@ marker.on("click", function() {
 
   marker.bindPopup(popupContent).openPopup();
 
+  if(!userMarker){
+    return;
+  }
+
+  try{
+
+    const profile = getRouteProfile();
+
+    const apiKey = "AIzaSyA_bAVs54VH8egBWlLHGXpq-34HNR97PRg";
+
+    const response = await fetch(
+      `https://api.openrouteservice.org/v2/directions/${profile}/geojson`,
+      {
+        method:"POST",
+
+        headers:{
+          "Authorization":apiKey,
+          "Content-Type":"application/json"
+        },
+
+        body:JSON.stringify({
+          coordinates:[
+            [
+              userMarker.getLatLng().lng,
+              userMarker.getLatLng().lat
+            ],
+            [info.lng,info.lat]
+          ]
+        })
+      }
+    );
+
+    if(!response.ok){
+      throw new Error("ルート情報を取得できません");
+    }
+
+    const data = await response.json();
+
+    const summary =
+      data.features[0].properties.summary;
+
+    popupContent = `
+      <b>${escapeHTML(info.name)}</b><br><br>
+
+      ${escapeHTML(info.comment)}<br><br>
+
+      タグ：${escapeHTML(info.tag)}<br><br>
+
+      ⏱ 所要時間：約${formatRouteDuration(summary.duration)}<br>
+
+      📏 距離：約${formatRouteDistance(summary.distance)}<br><br>
+
+      <button
+        class="route-popup-btn"
+        onclick="go(${info.lat},${info.lng})"
+      >
+        ルート表示
+      </button>
+    `;
+
+    // まだ同じポップアップが開いている場合だけ更新
+    if(map.hasLayer(marker) && marker.isPopupOpen()){
+      marker.setPopupContent(popupContent);
+    }
+
+  }catch(error){
+
+    console.error(error);
+
+    if(marker.isPopupOpen()){
+      marker.setPopupContent(
+        popupContent.replace(
+          "計算中...",
+          "取得できませんでした"
+        )
+      );
+    }
+
+  }
+
 });
+
 
 
   });
@@ -2195,21 +2378,32 @@ function setLanguage(l){
 }  
 
   
-function setTransport(t){  
 
-  transport = t;  
+function setTransport(t){
 
-  updateUI();  
+  transport = t;
 
-   if(nearest){ 
+  updateUI();
 
-    updateRecommendCard(nearest); 
+  // おすすめカード更新
+  if(nearest){
+    updateRecommendCard(nearest);
+  }
 
-  } 
+  // ルート表示中なら新しい移動手段で再検索
+  if(routeDestination && userMarker){
+
+    drawRoute(
+      userMarker.getLatLng(),
+      routeDestination
+    );
+
+  }
+
+  refreshPopup();
+
+}
   
-refreshPopup(); 
-
-}  
 
   
 function updateUI(){  
@@ -2232,143 +2426,202 @@ function updateUI(){
 
 }  
 
-  function go(lat,lng){  
+  // ================================
+// ルート情報管理
+// ================================
 
-  if(!userMarker){  
+let routeDestination = null;
+let routeLayer = null;
 
-    alert("現在地が取得できません");  
-
-    return;  
-
-  }  
-
-     drawRoute(
-        userMarker.getLatLng(),
-        L.latLng(lat,lng)
-    );
-}
-    
-  let routeLayer = null;
-  
-async function drawRoute(from,to){
-
-  if(routeLayer){
-    map.removeLayer(routeLayer);
-    routeLayer=null;
-  }
-
-
-  let profile;
+// 移動手段
+function getRouteProfile(){
 
   switch(transport){
 
     case "foot":
-      profile="foot-walking";
-      break;
+      return "foot-walking";
 
     case "bike":
-      profile="cycling-regular";
-      break;
+      return "cycling-regular";
 
     case "car":
-      profile="driving-car";
-      break;
+      return "driving-car";
 
   }
-
-
-  const apiKey="eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjUzMGIyYmEyYmIyYjQxODc4YzMzM2I5ZmYyM2VmZDBlIiwiaCI6Im11cm11cjY0In0=";
-
-
-  const url=
-    `https://api.openrouteservice.org/v2/directions/${profile}/geojson`;
-
-
-  const response = await fetch(url,{
-
-    method:"POST",
-
-    headers:{
-      "Authorization":apiKey,
-      "Content-Type":"application/json"
-    },
-
-    body:JSON.stringify({
-
-      coordinates:[
-
-        [
-          from.lng,
-          from.lat
-        ],
-
-        [
-          to.lng,
-          to.lat
-        ]
-
-      ]
-
-    })
-
-  });
-
-
-  const data=await response.json();
-
-
-  if(!data.features){
-
-    console.log(data);
-    alert("ルート取得失敗");
-
-    return;
-
-  }
-
-
-
-  routeLayer=L.geoJSON(data,{
-
-    style:{
-
-      color:"#6f4e37",
-      weight:5,
-      opacity:0.9
-
-    }
-
-  }).addTo(map);
-
-
-
-  map.fitBounds(
-    routeLayer.getBounds(),
-    {
-      padding:[40,40]
-    }
-  );
-
-
-  document
-    .getElementById("clear-route-btn")
-    .style.display="block";
 
 }
-   function clearRoute(){
+
+// 時間表示
+function formatRouteDuration(seconds){
+
+  const minutes = Math.round(seconds / 60);
+
+  const hours = Math.floor(minutes / 60);
+
+  const remaining = minutes % 60;
+
+  if(hours > 0){
+    return `${hours}時間${remaining}分`;
+  }
+
+  return `${minutes}分`;
+
+}
+
+// 距離表示
+function formatRouteDistance(meters){
+
+  if(meters >= 1000){
+    return `${(meters / 1000).toFixed(1)} km`;
+  }
+
+  return `${Math.round(meters)} m`;
+
+}
+
+// ルート情報カード更新
+function updateRouteCard(summary){
+
+  document.getElementById("route-duration").textContent =
+    formatRouteDuration(summary.duration);
+
+  document.getElementById("route-distance").textContent =
+    formatRouteDistance(summary.distance);
+
+  const names = {
+    foot:"徒歩",
+    bike:"自転車",
+    car:"車"
+  };
+
+  document.getElementById("route-transport").textContent =
+    `移動手段：${names[transport]}`;
+
+  document.getElementById("route-info-card")
+    .classList.remove("is-hidden");
+
+}
+
+// ルート検索開始
+function go(lat,lng){
+
+  if(!userMarker){
+    alert("現在地が取得できません");
+    return;
+  }
+
+  routeDestination = L.latLng(lat,lng);
+
+  drawRoute(
+    userMarker.getLatLng(),
+    routeDestination
+  );
+
+}
+  
+
+async function drawRoute(from,to){
+
+  if(!userMarker){
+    alert("現在地が取得できません");
+    return;
+  }
 
   if(routeLayer){
-
     map.removeLayer(routeLayer);
-
     routeLayer=null;
+  }
+
+  const profile = getRouteProfile();
+
+  const apiKey = "AIzaSyA_bAVs54VH8egBWlLHGXpq-34HNR97PRg";
+
+  try{
+
+    const url =
+      `https://api.openrouteservice.org/v2/directions/${profile}/geojson`;
+
+    const response = await fetch(url,{
+
+      method:"POST",
+
+      headers:{
+        "Authorization":apiKey,
+        "Content-Type":"application/json"
+      },
+
+      body:JSON.stringify({
+
+        coordinates:[
+          [from.lng,from.lat],
+          [to.lng,to.lat]
+        ]
+
+      })
+
+    });
+
+    if(!response.ok){
+      throw new Error("ルート取得に失敗しました");
+    }
+
+    const data = await response.json();
+
+    if(!data.features || !data.features.length){
+      throw new Error("ルート情報がありません");
+    }
+
+    // 実際のルート情報
+    const summary =
+      data.features[0].properties.summary;
+
+    // ルート情報カード更新
+    updateRouteCard(summary);
+
+    // 地図にルート表示
+    routeLayer = L.geoJSON(data,{
+
+      style:{
+        color:"#6f4e37",
+        weight:5,
+        opacity:0.9
+      }
+
+    }).addTo(map);
+
+    map.fitBounds(
+      routeLayer.getBounds(),
+      {padding:[40,40]}
+    );
+
+    document.getElementById(
+      "clear-route-btn"
+    ).style.display="block";
+
+  }catch(error){
+
+    console.error(error);
+
+    alert("ルートを取得できませんでした");
 
   }
 
+}
 
-  document
-    .getElementById("clear-route-btn")
-    .style.display="none";
+function clearRoute(){
+
+  if(routeLayer){
+    map.removeLayer(routeLayer);
+    routeLayer = null;
+  }
+
+  routeDestination = null;
+
+  document.getElementById("clear-route-btn")
+    .style.display = "none";
+
+  document.getElementById("route-info-card")
+    .classList.add("is-hidden");
 
 }
 
