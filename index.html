@@ -1738,108 +1738,39 @@ function time(a,b){
 }  
 
   
+  function refreshPopup(){ 
 
-let popupRequestId = 0;
+  if(!selectedMarker || !userMarker) return; 
 
-// 選択中のピンのポップアップを更新
-async function refreshPopup(){
+  const d = selectedMarker.data; 
 
-  if(!selectedMarker || !userMarker) return;
+  const txt = ` 
 
-  const marker = selectedMarker;
-  const d = marker.data;
-  const requestId = ++popupRequestId;
+    <b>${d.name}</b><br> 
 
-  marker.setPopupContent(`
-    <b>${escapeHTML(d.name)}</b><br><br>
-    ${escapeHTML(d.comment)}<br><br>
-    タグ：${escapeHTML(d.tag)}<br><br>
-    ⏱ 所要時間：計算中...<br>
-    📏 距離：計算中...
-    <br><br>
-    <button onclick="go(${d.lat},${d.lng})">
-      ルート表示
-    </button>
-  `);
+    ${d.comment}<br> 
 
-  try{
+    ${d.tag}<br> 
 
-    const summary = await fetchRouteSummary(
-      userMarker.getLatLng(),
-      marker.getLatLng()
-    );
+    所要時間:${time( 
 
-    // 古いリクエストの結果は無視
-    if(requestId !== popupRequestId) return;
+      userMarker.getLatLng(), 
 
-    if(selectedMarker !== marker) return;
+      selectedMarker.getLatLng() 
 
-    if(!marker.isPopupOpen()) return;
+    )}<br><br> 
 
-    marker.setPopupContent(`
-      <b>${escapeHTML(d.name)}</b><br><br>
-      ${escapeHTML(d.comment)}<br><br>
-      タグ：${escapeHTML(d.tag)}<br><br>
-      ⏱ 所要時間：約${formatRouteDuration(summary.duration)}<br>
-      📏 距離：約${formatRouteDistance(summary.distance)}<br><br>
-      <button onclick="go(${d.lat},${d.lng})">
-        ルート表示
-      </button>
-    `);
+    <button onclick="go(${d.lat},${d.lng})"> 
 
-  }catch(error){
+      ルート表示 
 
-    console.error("ポップアップ更新エラー:",error);
+    </button> 
 
-    if(requestId === popupRequestId && marker.isPopupOpen()){
+  `; 
 
-      marker.setPopupContent(
-        "ルート情報を取得できませんでした"
-      );
+  selectedMarker.setPopupContent(txt); 
 
-    }
-
-  }
-
-}
-
-  
-async function fetchRouteSummary(from, to) {
-
-  const profile = getRouteProfile();
-
-  // サーバー側でAPIキーを管理すること
-  const response = await fetch(
-    `/api/directions/${profile}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        coordinates: [
-          [from.lng, from.lat],
-          [to.lng, to.lat]
-        ]
-      })
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error("ルート取得エラー：" + response.status);
-  }
-
-  const data = await response.json();
-
-  if (!data.features || !data.features.length) {
-    throw new Error("ルート情報がありません");
-  }
-
-  return {
-    geojson: data,
-    summary: data.features[0].properties.summary
-  };
-}
+} 
 
 // ================================
 // 現在地マーカー
@@ -2010,57 +1941,100 @@ db.ref("locations").on("value", function(snapshot) {
 
 marker.on("click", async function() {
 
-  selectedMarker = marker;
-
   const info = marker.data;
 
-  marker.bindPopup(`
+  let popupContent = `
     <b>${escapeHTML(info.name)}</b><br><br>
     ${escapeHTML(info.comment)}<br><br>
     タグ：${escapeHTML(info.tag)}<br><br>
-    ⏱ 所要時間：計算中...<br>
-    📏 距離：計算中...<br><br>
+    ⏱ ルート所要時間：計算中...<br>
+    📏 ルート距離：計算中...<br><br>
+
     <button
       class="route-popup-btn"
-      onclick="go(${info.lat},${info.lng})">
+      onclick="go(${info.lat},${info.lng})"
+    >
       ルート表示
     </button>
-  `).openPopup();
+  `;
 
-  if (!userMarker) return;
+  marker.bindPopup(popupContent).openPopup();
 
-  try {
+  if(!userMarker){
+    return;
+  }
 
-    const result = await fetchRouteSummary(
-      userMarker.getLatLng(),
-      marker.getLatLng()
+  try{
+
+    const profile = getRouteProfile();
+
+    const apiKey = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjUzMGIyYmEyYmIyYjQxODc4YzMzM2I5ZmYyM2VmZDBlIiwiaCI6Im11cm11cjY0In0=";
+
+    const response = await fetch(
+      `https://api.openrouteservice.org/v2/directions/${profile}/geojson`,
+      {
+        method:"POST",
+
+        headers:{
+          "Authorization":apiKey,
+          "Content-Type":"application/json"
+        },
+
+        body:JSON.stringify({
+          coordinates:[
+            [
+              userMarker.getLatLng().lng,
+              userMarker.getLatLng().lat
+            ],
+            [info.lng,info.lat]
+          ]
+        })
+      }
     );
 
-    if (selectedMarker !== marker ||
-        !marker.isPopupOpen()) return;
+    if(!response.ok){
+      throw new Error("ルート情報を取得できません");
+    }
 
-    const summary = result.summary;
+    const data = await response.json();
 
-    marker.setPopupContent(`
+    const summary =
+      data.features[0].properties.summary;
+
+    popupContent = `
       <b>${escapeHTML(info.name)}</b><br><br>
+
       ${escapeHTML(info.comment)}<br><br>
+
       タグ：${escapeHTML(info.tag)}<br><br>
+
       ⏱ 所要時間：約${formatRouteDuration(summary.duration)}<br>
+
       📏 距離：約${formatRouteDistance(summary.distance)}<br><br>
+
       <button
         class="route-popup-btn"
-        onclick="go(${info.lat},${info.lng})">
+        onclick="go(${info.lat},${info.lng})"
+      >
         ルート表示
       </button>
-    `);
+    `;
 
-  } catch (error) {
+    // まだ同じポップアップが開いている場合だけ更新
+    if(map.hasLayer(marker) && marker.isPopupOpen()){
+      marker.setPopupContent(popupContent);
+    }
+
+  }catch(error){
 
     console.error(error);
 
-    if (marker.isPopupOpen()) {
+    if(marker.isPopupOpen()){
       marker.setPopupContent(
-        "ルート情報を取得できませんでした"
+        popupContent.replace(
+          "計算中...",
+          "取得できませんでした"
+        )
       );
     }
 
@@ -2078,9 +2052,6 @@ marker.on("click", async function() {
     "地図に表示した件数:",
     markers.length
   );
-
-  // 現在のフィルターを再適用
-updateMarkers();
 
 
   // マーカーが1つ以上あれば、
@@ -2183,27 +2154,23 @@ function findNearest(){
 
   }
 
+  window.recommendMarker =
+    L.marker(
+      nearest.getLatLng(),
+      {
+        icon:L.divIcon({
 
-window.recommendMarker =
-  L.marker(
-    nearest.getLatLng(),
-    {
-      interactive:false,
+          className:"recommend-wrap",
 
-      icon:L.divIcon({
+          html:`
+            <div class="recommend-box">
+              ⭐
+            </div>
+          `
 
-        className:"recommend-wrap",
-
-        html:`
-          <div class="recommend-box">
-            ⭐
-          </div>
-        `
-
-      })
-    }
-  ).addTo(map);
-
+        })
+      }
+    ).addTo(map);
 
   window.recommendMarker.on("click",()=>{
 
@@ -2412,30 +2379,30 @@ function setLanguage(l){
 
   
 
-
-function setTransport(t) {
+function setTransport(t){
 
   transport = t;
 
   updateUI();
 
-  if (nearest) {
+  // おすすめカード更新
+  if(nearest){
     updateRecommendCard(nearest);
   }
 
-  if (selectedMarker && userMarker) {
-    refreshPopup();
-  }
+  // ルート表示中なら新しい移動手段で再検索
+  if(routeDestination && userMarker){
 
-  if (routeDestination && userMarker) {
     drawRoute(
       userMarker.getLatLng(),
       routeDestination
     );
+
   }
 
-}
+  refreshPopup();
 
+}
   
 
   
@@ -2553,53 +2520,86 @@ function go(lat,lng){
 }
   
 
-async function drawRoute(from, to) {
+async function drawRoute(from,to){
 
-  if (!userMarker) {
+  if(!userMarker){
     alert("現在地が取得できません");
     return;
   }
 
-  const destination = to;
+  if(routeLayer){
+    map.removeLayer(routeLayer);
+    routeLayer=null;
+  }
 
-  try {
+  const profile = getRouteProfile();
 
-    const result = await fetchRouteSummary(
-      from,
-      destination
-    );
+  const apiKey = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjUzMGIyYmEyYmIyYjQxODc4YzMzM2I5ZmYyM2VmZDBlIiwiaCI6Im11cm11cjY0In0=";
 
-    const data = result.geojson;
-    const summary = result.summary;
+  try{
 
-    if (routeLayer) {
-      map.removeLayer(routeLayer);
+    const url =
+      `https://api.heigit.org/openrouteservice/v2/directions/${profile}/geojson`;
+    const response = await fetch(url,{
+
+      method:"POST",
+
+      headers:{
+        "Authorization":apiKey,
+        "Content-Type":"application/json"
+      },
+
+      body:JSON.stringify({
+
+        coordinates:[
+          [from.lng,from.lat],
+          [to.lng,to.lat]
+        ]
+
+      })
+
+    });
+
+    if(!response.ok){
+      throw new Error("ルート取得に失敗しました");
     }
 
-    routeLayer = L.geoJSON(data, {
-      style: {
-        color: "#6f4e37",
-        weight: 5,
-        opacity: 0.9
-      }
-    }).addTo(map);
+    const data = await response.json();
 
+    if(!data.features || !data.features.length){
+      throw new Error("ルート情報がありません");
+    }
+
+    // 実際のルート情報
+    const summary =
+      data.features[0].properties.summary;
+
+    // ルート情報カード更新
     updateRouteCard(summary);
+
+    // 地図にルート表示
+    routeLayer = L.geoJSON(data,{
+
+      style:{
+        color:"#6f4e37",
+        weight:5,
+        opacity:0.9
+      }
+
+    }).addTo(map);
 
     map.fitBounds(
       routeLayer.getBounds(),
-      { padding: [40, 40] }
+      {padding:[40,40]}
     );
 
     document.getElementById(
       "clear-route-btn"
-    ).style.display = "block";
+    ).style.display="block";
 
-    routeDestination = destination;
+  }catch(error){
 
-  } catch (error) {
-
-    console.error("ルート取得エラー:", error);
+    console.error(error);
 
     alert("ルートを取得できませんでした");
 
@@ -3015,156 +3015,305 @@ function escapeHTML(text){
 
 }
 
+  // ================================
+// 史跡一覧
+// ================================
 
-  
-function renderLocationList(mode = "all", keyword = "") {
+function showLocationList(){
 
-  const panel = document.getElementById("location-list-panel");
-  const list = document.getElementById("location-list");
-  const title = document.getElementById("list-title");
+  const panel =
+    document.getElementById(
+      "location-list-panel"
+    );
+
+  const list =
+    document.getElementById(
+      "location-list"
+    );
+
+  const title =
+    document.getElementById(
+      "list-title"
+    );
+
+
+  title.textContent = "史跡一覧";
 
   list.innerHTML = "";
 
-  if (mode === "favorite") {
-    title.textContent = "⭐ お気に入り";
-  } else if (mode === "search") {
-    title.textContent = `🔍「${keyword}」の検索結果`;
-  } else {
-    title.textContent = "史跡一覧";
-  }
 
-  let results = markers.filter(marker => {
+  if(markers.length === 0){
 
-    const d = marker.data;
+    list.innerHTML =
+      `<div class="no-result">
+        史跡がありません
+      </div>`;
 
-    if (mode === "favorite" && !isFavorite(d.name)) {
-      return false;
-    }
+    panel.classList.remove(
+      "hidden-panel"
+    );
 
-    if (mode === "search" && keyword) {
-
-      const text = [
-        d.name,
-        d.comment,
-        d.tag
-      ].join(" ").toLowerCase();
-
-      if (!text.includes(keyword.toLowerCase())) {
-        return false;
-      }
-    }
-
-    return true;
-
-  });
-
-  if (results.length === 0) {
-
-    const message = document.createElement("div");
-    message.className = "no-result";
-
-    message.textContent =
-      mode === "favorite"
-        ? "⭐ お気に入りはまだありません"
-        : mode === "search"
-          ? `「${keyword}」に一致する史跡がありません`
-          : "史跡がありません";
-
-    list.appendChild(message);
-    panel.classList.remove("hidden-panel");
     return;
+
   }
 
-  results.forEach(marker => {
+
+  markers.forEach(marker => {
 
     const d = marker.data;
-    const favorite = isFavorite(d.name);
 
-    const item = document.createElement("div");
-    item.className = "location-item";
+    const favorite =
+      isFavorite(d.name);
 
-    const icon = document.createElement("div");
-    icon.className = "location-icon";
-    icon.textContent = getLocationEmoji(d.tag);
 
-    const info = document.createElement("div");
-    info.className = "location-info";
+    const item =
+      document.createElement("div");
 
-    const name = document.createElement("div");
-    name.className = "location-name";
-    name.textContent = d.name;
+    item.className =
+      "location-item";
 
-    const comment = document.createElement("div");
-    comment.className = "location-comment";
-    comment.textContent = d.comment;
 
-    info.appendChild(name);
-    info.appendChild(comment);
+    item.innerHTML = `
 
-    const favoriteBtn = document.createElement("button");
+      <div class="location-icon">
+        ${getLocationEmoji(d.tag)}
+      </div>
 
-    favoriteBtn.className =
-      "favorite-btn" + (favorite ? " is-favorite" : "");
+      <div class="location-info">
 
-    favoriteBtn.textContent = favorite ? "⭐" : "☆";
+        <div class="location-name">
+          ${escapeHTML(d.name)}
+        </div>
 
-    favoriteBtn.onclick = function(event) {
-      event.stopPropagation();
-      toggleFavorite(d.name);
-    };
+        <div class="location-comment">
+          ${escapeHTML(d.comment)}
+        </div>
 
-    item.onclick = function() {
+      </div>
 
-      map.setView(marker.getLatLng(), 17);
+      <button
+        class="favorite-btn ${
+          favorite
+            ? "is-favorite"
+            : ""
+        }"
+      >
+        ${favorite ? "⭐" : "☆"}
+      </button>
 
-      const popupContent = `
-        <b>${escapeHTML(d.name)}</b><br><br>
-        ${escapeHTML(d.comment)}<br><br>
-        タグ：${escapeHTML(d.tag)}<br><br>
-        <button onclick="go(${d.lat},${d.lng})">
-          ルート表示
-        </button>
-      `;
+    `;
 
-      marker.bindPopup(popupContent).openPopup();
+
+    // お気に入りボタン
+
+    const favoriteBtn =
+      item.querySelector(
+        ".favorite-btn"
+      );
+
+
+    favoriteBtn.onclick =
+      function(event){
+
+        event.stopPropagation();
+
+        toggleFavorite(d.name);
+
+      };
+
+
+    // 史跡をクリック
+
+    item.onclick = () => {
+
+      map.setView(
+        marker.getLatLng(),
+        17
+      );
+
+
+      if(userMarker){
+
+        const text = `
+
+          <b>${escapeHTML(d.name)}</b><br>
+
+          ${escapeHTML(d.comment)}<br>
+
+          ${escapeHTML(d.tag)}<br><br>
+
+          <button
+            onclick="
+              go(${d.lat},${d.lng})
+            "
+          >
+            ルート表示
+          </button>
+
+        `;
+
+
+        marker.bindPopup(text);
+
+      }
+
+
+      marker.openPopup();
+
       closeLocationList();
 
     };
 
-    item.appendChild(icon);
-    item.appendChild(info);
-    item.appendChild(favoriteBtn);
 
     list.appendChild(item);
 
   });
 
-  panel.classList.remove("hidden-panel");
+
+  panel.classList.remove(
+    "hidden-panel"
+  );
 
 }
 
+  // ================================
+// お気に入り一覧
+// ================================
 
-// 史跡一覧
-function showLocationList() {
-  renderLocationList("all");
+function showFavorites(){
+
+  const panel =
+    document.getElementById(
+      "location-list-panel"
+    );
+
+  const list =
+    document.getElementById(
+      "location-list"
+    );
+
+  const title =
+    document.getElementById(
+      "list-title"
+    );
+
+
+  title.textContent =
+    "⭐ お気に入り";
+
+  list.innerHTML = "";
+
+
+  const favoriteMarkers =
+    markers.filter(marker => {
+
+      return isFavorite(
+        marker.data.name
+      );
+
+    });
+
+
+  if(favoriteMarkers.length === 0){
+
+    list.innerHTML = `
+
+      <div class="no-result">
+
+        ⭐
+
+        <br><br>
+
+        お気に入りはまだありません
+
+      </div>
+
+    `;
+
+  }else{
+
+    favoriteMarkers.forEach(marker => {
+
+      const d = marker.data;
+
+
+      const item =
+        document.createElement("div");
+
+      item.className =
+        "location-item";
+
+
+      item.innerHTML = `
+
+        <div class="location-icon">
+          ${getLocationEmoji(d.tag)}
+        </div>
+
+        <div class="location-info">
+
+          <div class="location-name">
+            ${escapeHTML(d.name)}
+          </div>
+
+          <div class="location-comment">
+            ${escapeHTML(d.comment)}
+          </div>
+
+        </div>
+
+        <button
+          class="favorite-btn is-favorite"
+        >
+          ⭐
+        </button>
+
+      `;
+
+
+      const favoriteBtn =
+        item.querySelector(
+          ".favorite-btn"
+        );
+
+
+      favoriteBtn.onclick =
+        function(event){
+
+          event.stopPropagation();
+
+          toggleFavorite(d.name);
+
+        };
+
+
+      item.onclick = () => {
+
+        map.setView(
+          marker.getLatLng(),
+          17
+        );
+
+
+        marker.openPopup();
+
+        closeLocationList();
+
+      };
+
+
+      list.appendChild(item);
+
+    });
+
+  }
+
+
+  panel.classList.remove(
+    "hidden-panel"
+  );
+
 }
-
-// お気に入り
-function showFavorites() {
-  renderLocationList("favorite");
-}
-
-// 検索結果
-function searchLocations() {
-
-  const keyword = document
-    .getElementById("search-input")
-    .value.trim();
-
-  renderLocationList("search", keyword);
-
-}
-
 
   // ================================
 // 一覧を閉じる
@@ -3182,7 +3331,228 @@ function closeLocationList(){
 
 }
 
+  // ================================
+// 検索
+// ================================
 
+function searchLocations(){
+
+  const input =
+    document.getElementById(
+      "search-input"
+    );
+
+
+  const keyword =
+    input.value
+      .trim()
+      .toLowerCase();
+
+
+  const panel =
+    document.getElementById(
+      "location-list-panel"
+    );
+
+  const list =
+    document.getElementById(
+      "location-list"
+    );
+
+  const title =
+    document.getElementById(
+      "list-title"
+    );
+
+
+  title.textContent =
+    keyword
+      ? `🔍「${keyword}」の検索結果`
+      : "史跡一覧";
+
+
+  list.innerHTML = "";
+
+
+  const results =
+    markers.filter(marker => {
+
+      if(!keyword){
+
+        return true;
+
+      }
+
+
+      const d = marker.data;
+
+
+      const text = [
+
+        d.name,
+        d.comment,
+        d.tag
+
+      ]
+      .join(" ")
+      .toLowerCase();
+
+
+      return text.includes(keyword);
+
+    });
+
+
+  if(results.length === 0){
+
+    list.innerHTML = `
+
+      <div class="no-result">
+
+        🔍
+
+        <br><br>
+
+        「${escapeHTML(keyword)}」
+
+        に一致する史跡がありません
+
+      </div>
+
+    `;
+
+  }else{
+
+    results.forEach(marker => {
+
+      const d = marker.data;
+
+      const favorite =
+        isFavorite(d.name);
+
+
+      const item =
+        document.createElement("div");
+
+      item.className =
+        "location-item";
+
+
+      item.innerHTML = `
+
+        <div class="location-icon">
+          ${getLocationEmoji(d.tag)}
+        </div>
+
+        <div class="location-info">
+
+          <div class="location-name">
+            ${escapeHTML(d.name)}
+          </div>
+
+          <div class="location-comment">
+            ${escapeHTML(d.comment)}
+          </div>
+
+        </div>
+
+        <button
+          class="favorite-btn ${
+            favorite
+              ? "is-favorite"
+              : ""
+          }"
+        >
+          ${favorite ? "⭐" : "☆"}
+        </button>
+
+      `;
+
+
+      const favoriteBtn =
+        item.querySelector(
+          ".favorite-btn"
+        );
+
+
+      favoriteBtn.onclick =
+        function(event){
+
+          event.stopPropagation();
+
+          toggleFavorite(d.name);
+
+        };
+
+
+      item.onclick = () => {
+
+        map.setView(
+          marker.getLatLng(),
+          17
+        );
+
+
+        marker.openPopup();
+
+        closeLocationList();
+
+      };
+
+
+      list.appendChild(item);
+
+    });
+
+  }
+
+
+  panel.classList.remove(
+    "hidden-panel"
+  );
+
+}
+
+  // ================================
+// 検索
+// ================================
+
+  function searchLocations(){
+
+  const input =
+    document.getElementById("search-input");
+
+  const keyword =
+    input.value.trim().toLowerCase();
+
+  markers.forEach(marker => {
+
+    const d = marker.data;
+
+    const text = [
+      d.name,
+      d.comment,
+      d.tag
+    ]
+    .join(" ")
+    .toLowerCase();
+
+    if(
+      keyword === "" ||
+      text.includes(keyword)
+    ){
+
+      map.addLayer(marker);
+
+    }else{
+
+      map.removeLayer(marker);
+
+    }
+
+  });
+
+}
 
   document
   .getElementById("search-input")
