@@ -2564,9 +2564,47 @@ function updateCompass(event){
 }
 
 
+
+let compassActive = false;
+
 async function startCompass(){
 
-  // iPhone / iPadでは許可が必要
+  const btn =
+    document.getElementById("compass-btn");
+
+  // =========================
+  // OFFにする
+  // =========================
+
+  if(compassActive){
+
+    window.removeEventListener(
+      "deviceorientation",
+      updateCompass,
+      true
+    );
+
+    compassActive = false;
+
+    btn.classList.remove("active");
+    btn.textContent = "🧭コンパス";
+
+    // 方向矢印を元に戻す
+    const arrow =
+      document.querySelector(".user-heading");
+
+    if(arrow){
+      arrow.style.transform =
+        "translateX(-50%) rotate(0deg)";
+    }
+
+    return;
+  }
+
+  // =========================
+  // ONにする
+  // =========================
+
   if(
     typeof DeviceOrientationEvent !== "undefined" &&
     typeof DeviceOrientationEvent.requestPermission === "function"
@@ -2580,7 +2618,6 @@ async function startCompass(){
       if(permission !== "granted"){
 
         alert("コンパスの利用が許可されませんでした");
-
         return;
 
       }
@@ -2588,23 +2625,18 @@ async function startCompass(){
     }catch(error){
 
       console.error(error);
-
       alert("コンパスを利用できません");
-
       return;
 
     }
 
   }
 
-
-  // 二重登録を防ぐ
   window.removeEventListener(
     "deviceorientation",
     updateCompass,
     true
   );
-
 
   window.addEventListener(
     "deviceorientation",
@@ -2612,16 +2644,13 @@ async function startCompass(){
     true
   );
 
-
-  const btn =
-    document.getElementById("compass-btn");
-
+  compassActive = true;
 
   btn.classList.add("active");
-
   btn.textContent = "🧭コンパスON";
 
 }
+
 
   // ================================
 // お気に入り
