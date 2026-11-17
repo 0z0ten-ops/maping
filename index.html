@@ -3015,305 +3015,156 @@ function escapeHTML(text){
 
 }
 
-  // ================================
-// 史跡一覧
-// ================================
 
-function showLocationList(){
+  
+function renderLocationList(mode = "all", keyword = "") {
 
-  const panel =
-    document.getElementById(
-      "location-list-panel"
-    );
-
-  const list =
-    document.getElementById(
-      "location-list"
-    );
-
-  const title =
-    document.getElementById(
-      "list-title"
-    );
-
-
-  title.textContent = "史跡一覧";
+  const panel = document.getElementById("location-list-panel");
+  const list = document.getElementById("location-list");
+  const title = document.getElementById("list-title");
 
   list.innerHTML = "";
 
-
-  if(markers.length === 0){
-
-    list.innerHTML =
-      `<div class="no-result">
-        史跡がありません
-      </div>`;
-
-    panel.classList.remove(
-      "hidden-panel"
-    );
-
-    return;
-
+  if (mode === "favorite") {
+    title.textContent = "⭐ お気に入り";
+  } else if (mode === "search") {
+    title.textContent = `🔍「${keyword}」の検索結果`;
+  } else {
+    title.textContent = "史跡一覧";
   }
 
-
-  markers.forEach(marker => {
+  let results = markers.filter(marker => {
 
     const d = marker.data;
 
-    const favorite =
-      isFavorite(d.name);
+    if (mode === "favorite" && !isFavorite(d.name)) {
+      return false;
+    }
 
+    if (mode === "search" && keyword) {
 
-    const item =
-      document.createElement("div");
+      const text = [
+        d.name,
+        d.comment,
+        d.tag
+      ].join(" ").toLowerCase();
 
-    item.className =
-      "location-item";
-
-
-    item.innerHTML = `
-
-      <div class="location-icon">
-        ${getLocationEmoji(d.tag)}
-      </div>
-
-      <div class="location-info">
-
-        <div class="location-name">
-          ${escapeHTML(d.name)}
-        </div>
-
-        <div class="location-comment">
-          ${escapeHTML(d.comment)}
-        </div>
-
-      </div>
-
-      <button
-        class="favorite-btn ${
-          favorite
-            ? "is-favorite"
-            : ""
-        }"
-      >
-        ${favorite ? "⭐" : "☆"}
-      </button>
-
-    `;
-
-
-    // お気に入りボタン
-
-    const favoriteBtn =
-      item.querySelector(
-        ".favorite-btn"
-      );
-
-
-    favoriteBtn.onclick =
-      function(event){
-
-        event.stopPropagation();
-
-        toggleFavorite(d.name);
-
-      };
-
-
-    // 史跡をクリック
-
-    item.onclick = () => {
-
-      map.setView(
-        marker.getLatLng(),
-        17
-      );
-
-
-      if(userMarker){
-
-        const text = `
-
-          <b>${escapeHTML(d.name)}</b><br>
-
-          ${escapeHTML(d.comment)}<br>
-
-          ${escapeHTML(d.tag)}<br><br>
-
-          <button
-            onclick="
-              go(${d.lat},${d.lng})
-            "
-          >
-            ルート表示
-          </button>
-
-        `;
-
-
-        marker.bindPopup(text);
-
+      if (!text.includes(keyword.toLowerCase())) {
+        return false;
       }
+    }
 
+    return true;
 
-      marker.openPopup();
+  });
 
+  if (results.length === 0) {
+
+    const message = document.createElement("div");
+    message.className = "no-result";
+
+    message.textContent =
+      mode === "favorite"
+        ? "⭐ お気に入りはまだありません"
+        : mode === "search"
+          ? `「${keyword}」に一致する史跡がありません`
+          : "史跡がありません";
+
+    list.appendChild(message);
+    panel.classList.remove("hidden-panel");
+    return;
+  }
+
+  results.forEach(marker => {
+
+    const d = marker.data;
+    const favorite = isFavorite(d.name);
+
+    const item = document.createElement("div");
+    item.className = "location-item";
+
+    const icon = document.createElement("div");
+    icon.className = "location-icon";
+    icon.textContent = getLocationEmoji(d.tag);
+
+    const info = document.createElement("div");
+    info.className = "location-info";
+
+    const name = document.createElement("div");
+    name.className = "location-name";
+    name.textContent = d.name;
+
+    const comment = document.createElement("div");
+    comment.className = "location-comment";
+    comment.textContent = d.comment;
+
+    info.appendChild(name);
+    info.appendChild(comment);
+
+    const favoriteBtn = document.createElement("button");
+
+    favoriteBtn.className =
+      "favorite-btn" + (favorite ? " is-favorite" : "");
+
+    favoriteBtn.textContent = favorite ? "⭐" : "☆";
+
+    favoriteBtn.onclick = function(event) {
+      event.stopPropagation();
+      toggleFavorite(d.name);
+    };
+
+    item.onclick = function() {
+
+      map.setView(marker.getLatLng(), 17);
+
+      const popupContent = `
+        <b>${escapeHTML(d.name)}</b><br><br>
+        ${escapeHTML(d.comment)}<br><br>
+        タグ：${escapeHTML(d.tag)}<br><br>
+        <button onclick="go(${d.lat},${d.lng})">
+          ルート表示
+        </button>
+      `;
+
+      marker.bindPopup(popupContent).openPopup();
       closeLocationList();
 
     };
 
+    item.appendChild(icon);
+    item.appendChild(info);
+    item.appendChild(favoriteBtn);
 
     list.appendChild(item);
 
   });
 
-
-  panel.classList.remove(
-    "hidden-panel"
-  );
+  panel.classList.remove("hidden-panel");
 
 }
 
-  // ================================
-// お気に入り一覧
-// ================================
 
-function showFavorites(){
+// 史跡一覧
+function showLocationList() {
+  renderLocationList("all");
+}
 
-  const panel =
-    document.getElementById(
-      "location-list-panel"
-    );
+// お気に入り
+function showFavorites() {
+  renderLocationList("favorite");
+}
 
-  const list =
-    document.getElementById(
-      "location-list"
-    );
+// 検索結果
+function searchLocations() {
 
-  const title =
-    document.getElementById(
-      "list-title"
-    );
+  const keyword = document
+    .getElementById("search-input")
+    .value.trim();
 
-
-  title.textContent =
-    "⭐ お気に入り";
-
-  list.innerHTML = "";
-
-
-  const favoriteMarkers =
-    markers.filter(marker => {
-
-      return isFavorite(
-        marker.data.name
-      );
-
-    });
-
-
-  if(favoriteMarkers.length === 0){
-
-    list.innerHTML = `
-
-      <div class="no-result">
-
-        ⭐
-
-        <br><br>
-
-        お気に入りはまだありません
-
-      </div>
-
-    `;
-
-  }else{
-
-    favoriteMarkers.forEach(marker => {
-
-      const d = marker.data;
-
-
-      const item =
-        document.createElement("div");
-
-      item.className =
-        "location-item";
-
-
-      item.innerHTML = `
-
-        <div class="location-icon">
-          ${getLocationEmoji(d.tag)}
-        </div>
-
-        <div class="location-info">
-
-          <div class="location-name">
-            ${escapeHTML(d.name)}
-          </div>
-
-          <div class="location-comment">
-            ${escapeHTML(d.comment)}
-          </div>
-
-        </div>
-
-        <button
-          class="favorite-btn is-favorite"
-        >
-          ⭐
-        </button>
-
-      `;
-
-
-      const favoriteBtn =
-        item.querySelector(
-          ".favorite-btn"
-        );
-
-
-      favoriteBtn.onclick =
-        function(event){
-
-          event.stopPropagation();
-
-          toggleFavorite(d.name);
-
-        };
-
-
-      item.onclick = () => {
-
-        map.setView(
-          marker.getLatLng(),
-          17
-        );
-
-
-        marker.openPopup();
-
-        closeLocationList();
-
-      };
-
-
-      list.appendChild(item);
-
-    });
-
-  }
-
-
-  panel.classList.remove(
-    "hidden-panel"
-  );
+  renderLocationList("search", keyword);
 
 }
+
 
   // ================================
 // 一覧を閉じる
@@ -3331,228 +3182,7 @@ function closeLocationList(){
 
 }
 
-  // ================================
-// 検索
-// ================================
 
-function searchLocations(){
-
-  const input =
-    document.getElementById(
-      "search-input"
-    );
-
-
-  const keyword =
-    input.value
-      .trim()
-      .toLowerCase();
-
-
-  const panel =
-    document.getElementById(
-      "location-list-panel"
-    );
-
-  const list =
-    document.getElementById(
-      "location-list"
-    );
-
-  const title =
-    document.getElementById(
-      "list-title"
-    );
-
-
-  title.textContent =
-    keyword
-      ? `🔍「${keyword}」の検索結果`
-      : "史跡一覧";
-
-
-  list.innerHTML = "";
-
-
-  const results =
-    markers.filter(marker => {
-
-      if(!keyword){
-
-        return true;
-
-      }
-
-
-      const d = marker.data;
-
-
-      const text = [
-
-        d.name,
-        d.comment,
-        d.tag
-
-      ]
-      .join(" ")
-      .toLowerCase();
-
-
-      return text.includes(keyword);
-
-    });
-
-
-  if(results.length === 0){
-
-    list.innerHTML = `
-
-      <div class="no-result">
-
-        🔍
-
-        <br><br>
-
-        「${escapeHTML(keyword)}」
-
-        に一致する史跡がありません
-
-      </div>
-
-    `;
-
-  }else{
-
-    results.forEach(marker => {
-
-      const d = marker.data;
-
-      const favorite =
-        isFavorite(d.name);
-
-
-      const item =
-        document.createElement("div");
-
-      item.className =
-        "location-item";
-
-
-      item.innerHTML = `
-
-        <div class="location-icon">
-          ${getLocationEmoji(d.tag)}
-        </div>
-
-        <div class="location-info">
-
-          <div class="location-name">
-            ${escapeHTML(d.name)}
-          </div>
-
-          <div class="location-comment">
-            ${escapeHTML(d.comment)}
-          </div>
-
-        </div>
-
-        <button
-          class="favorite-btn ${
-            favorite
-              ? "is-favorite"
-              : ""
-          }"
-        >
-          ${favorite ? "⭐" : "☆"}
-        </button>
-
-      `;
-
-
-      const favoriteBtn =
-        item.querySelector(
-          ".favorite-btn"
-        );
-
-
-      favoriteBtn.onclick =
-        function(event){
-
-          event.stopPropagation();
-
-          toggleFavorite(d.name);
-
-        };
-
-
-      item.onclick = () => {
-
-        map.setView(
-          marker.getLatLng(),
-          17
-        );
-
-
-        marker.openPopup();
-
-        closeLocationList();
-
-      };
-
-
-      list.appendChild(item);
-
-    });
-
-  }
-
-
-  panel.classList.remove(
-    "hidden-panel"
-  );
-
-}
-
-  // ================================
-// 検索
-// ================================
-
-  function searchLocations(){
-
-  const input =
-    document.getElementById("search-input");
-
-  const keyword =
-    input.value.trim().toLowerCase();
-
-  markers.forEach(marker => {
-
-    const d = marker.data;
-
-    const text = [
-      d.name,
-      d.comment,
-      d.tag
-    ]
-    .join(" ")
-    .toLowerCase();
-
-    if(
-      keyword === "" ||
-      text.includes(keyword)
-    ){
-
-      map.addLayer(marker);
-
-    }else{
-
-      map.removeLayer(marker);
-
-    }
-
-  });
-
-}
 
   document
   .getElementById("search-input")
