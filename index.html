@@ -1804,44 +1804,41 @@ async function refreshPopup(){
 }
 
   
-async function fetchRouteSummary(from,to){
+async function fetchRouteSummary(from, to) {
 
   const profile = getRouteProfile();
 
-  const apiKey = "新しいAPIキーを設定";
-
+  // サーバー側でAPIキーを管理すること
   const response = await fetch(
-    `https://api.openrouteservice.org/v2/directions/${profile}/geojson`,
+    `/api/directions/${profile}`,
     {
-      method:"POST",
-
-      headers:{
-        "Authorization":apiKey,
-        "Content-Type":"application/json"
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
       },
-
-      body:JSON.stringify({
-        coordinates:[
-          [from.lng,from.lat],
-          [to.lng,to.lat]
+      body: JSON.stringify({
+        coordinates: [
+          [from.lng, from.lat],
+          [to.lng, to.lat]
         ]
       })
     }
   );
 
-  if(!response.ok){
-    throw new Error(
-      "ルート取得エラー："+response.status
-    );
+  if (!response.ok) {
+    throw new Error("ルート取得エラー：" + response.status);
   }
 
   const data = await response.json();
 
-  if(!data.features || !data.features.length){
+  if (!data.features || !data.features.length) {
     throw new Error("ルート情報がありません");
   }
 
-  return data.features[0].properties.summary;
+  return {
+    geojson: data,
+    summary: data.features[0].properties.summary
+  };
 }
 
 // ================================
@@ -2017,77 +2014,53 @@ marker.on("click", async function() {
 
   const info = marker.data;
 
-  let popupContent = `
+  marker.bindPopup(`
     <b>${escapeHTML(info.name)}</b><br><br>
     ${escapeHTML(info.comment)}<br><br>
     タグ：${escapeHTML(info.tag)}<br><br>
-    ⏱ ルート所要時間：計算中...<br>
-    📏 ルート距離：計算中...<br><br>
-
+    ⏱ 所要時間：計算中...<br>
+    📏 距離：計算中...<br><br>
     <button
       class="route-popup-btn"
-      onclick="go(${info.lat},${info.lng})"
-    >
+      onclick="go(${info.lat},${info.lng})">
       ルート表示
     </button>
-  `;
+  `).openPopup();
 
-  marker.bindPopup(popupContent).openPopup();
+  if (!userMarker) return;
 
-  if(!userMarker){
-    return;
-  }
+  try {
 
-  try{
+    const result = await fetchRouteSummary(
+      userMarker.getLatLng(),
+      marker.getLatLng()
+    );
 
-    const profile = getRouteProfile();
+    if (selectedMarker !== marker ||
+        !marker.isPopupOpen()) return;
 
-    const apiKey = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjUzMGIyYmEyYmIyYjQxODc4YzMzM2I5ZmYyM2VmZDBlIiwiaCI6Im11cm11cjY0In0=";
+    const summary = result.summary;
 
-
-    if(!response.ok){
-      throw new Error("ルート情報を取得できません");
-    }
-
-    const data = await response.json();
-
-    const summary =
-      data.features[0].properties.summary;
-
-    popupContent = `
+    marker.setPopupContent(`
       <b>${escapeHTML(info.name)}</b><br><br>
-
       ${escapeHTML(info.comment)}<br><br>
-
       タグ：${escapeHTML(info.tag)}<br><br>
-
       ⏱ 所要時間：約${formatRouteDuration(summary.duration)}<br>
-
       📏 距離：約${formatRouteDistance(summary.distance)}<br><br>
-
       <button
         class="route-popup-btn"
-        onclick="go(${info.lat},${info.lng})"
-      >
+        onclick="go(${info.lat},${info.lng})">
         ルート表示
       </button>
-    `;
+    `);
 
-    // まだ同じポップアップが開いている場合だけ更新
-    if(map.hasLayer(marker) && marker.isPopupOpen()){
-      marker.setPopupContent(popupContent);
-    }
-
-  }catch(error){
+  } catch (error) {
 
     console.error(error);
 
-    if(marker.isPopupOpen()){
+    if (marker.isPopupOpen()) {
       marker.setPopupContent(
-        popupContent.replace(
-          "計算中...",
-          "取得できませんでした"
-        )
+        "ルート情報を取得できませんでした"
       );
     }
 
@@ -2440,24 +2413,21 @@ function setLanguage(l){
   
 
 
-function setTransport(t){
+function setTransport(t) {
 
   transport = t;
 
   updateUI();
 
-  // おすすめカードの時間を更新
-  if(nearest){
+  if (nearest) {
     updateRecommendCard(nearest);
   }
 
-  // 選択中のピンの時間を再計算
-  if(selectedMarker && userMarker){
+  if (selectedMarker && userMarker) {
     refreshPopup();
   }
 
-  // ルート表示中ならルートも再取得
-  if(routeDestination && userMarker){
+  if (routeDestination && userMarker) {
     drawRoute(
       userMarker.getLatLng(),
       routeDestination
@@ -2583,86 +2553,53 @@ function go(lat,lng){
 }
   
 
-async function drawRoute(from,to){
+async function drawRoute(from, to) {
 
-  if(!userMarker){
+  if (!userMarker) {
     alert("現在地が取得できません");
     return;
   }
 
-  if(routeLayer){
-    map.removeLayer(routeLayer);
-    routeLayer=null;
-  }
+  const destination = to;
 
-  const profile = getRouteProfile();
+  try {
 
-  const apiKey = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjUzMGIyYmEyYmIyYjQxODc4YzMzM2I5ZmYyM2VmZDBlIiwiaCI6Im11cm11cjY0In0=";
+    const result = await fetchRouteSummary(
+      from,
+      destination
+    );
 
-  try{
+    const data = result.geojson;
+    const summary = result.summary;
 
-    const url =
-      `https://api.heigit.org/openrouteservice/v2/directions/${profile}/geojson`;
-    const response = await fetch(url,{
-
-      method:"POST",
-
-      headers:{
-        "Authorization":apiKey,
-        "Content-Type":"application/json"
-      },
-
-      body:JSON.stringify({
-
-        coordinates:[
-          [from.lng,from.lat],
-          [to.lng,to.lat]
-        ]
-
-      })
-
-    });
-
-    if(!response.ok){
-      throw new Error("ルート取得に失敗しました");
+    if (routeLayer) {
+      map.removeLayer(routeLayer);
     }
 
-    const data = await response.json();
-
-    if(!data.features || !data.features.length){
-      throw new Error("ルート情報がありません");
-    }
-
-    // 実際のルート情報
-    const summary =
-      data.features[0].properties.summary;
-
-    // ルート情報カード更新
-    updateRouteCard(summary);
-
-    // 地図にルート表示
-    routeLayer = L.geoJSON(data,{
-
-      style:{
-        color:"#6f4e37",
-        weight:5,
-        opacity:0.9
+    routeLayer = L.geoJSON(data, {
+      style: {
+        color: "#6f4e37",
+        weight: 5,
+        opacity: 0.9
       }
-
     }).addTo(map);
+
+    updateRouteCard(summary);
 
     map.fitBounds(
       routeLayer.getBounds(),
-      {padding:[40,40]}
+      { padding: [40, 40] }
     );
 
     document.getElementById(
       "clear-route-btn"
-    ).style.display="block";
+    ).style.display = "block";
 
-  }catch(error){
+    routeDestination = destination;
 
-    console.error(error);
+  } catch (error) {
+
+    console.error("ルート取得エラー:", error);
 
     alert("ルートを取得できませんでした");
 
